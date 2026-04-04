@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { playNewOrder, playAccept, playDecline, playArrived, playDelivered, playRankUp, playTap } from "../sounds";
+import type { DriverProfile } from "./Onboarding";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ function generateOrder(): Order {
 
 // ─── Animated Road View ───────────────────────────────────────────────────────
 
-function RoadView({ phase, order, progress }: { phase: Phase; order: Order | null; progress: number }) {
+function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; order: Order | null; progress: number; vehicleEmoji: string }) {
   const moving = phase === "to-restaurant" || phase === "to-customer";
   const atRest = phase === "at-restaurant";
   const toCustomer = phase === "to-customer";
@@ -102,7 +103,7 @@ function RoadView({ phase, order, progress }: { phase: Phase; order: Order | nul
           transform: "translateX(-50%)",
           backgroundImage: "repeating-linear-gradient(to bottom, #fff 0px, #fff 28px, transparent 28px, transparent 56px)",
           backgroundSize: "4px 56px",
-          animation: moving ? "roadScroll 0.4s linear infinite" : "none",
+          animation: moving ? "roadScroll 1.4s linear infinite" : "none",
           opacity: 0.35,
         }} />
 
@@ -128,7 +129,7 @@ function RoadView({ phase, order, progress }: { phase: Phase; order: Order | nul
           <div style={{
             position: "absolute", inset: 0,
             backgroundImage: "repeating-linear-gradient(to bottom, #2a2a2a 0px, #2a2a2a 20px, transparent 20px, transparent 40px)",
-            animation: moving ? "roadScroll 0.4s linear infinite" : "none",
+            animation: moving ? "roadScroll 1.4s linear infinite" : "none",
             opacity: 0.5,
           }} />
         </div>
@@ -189,7 +190,7 @@ function RoadView({ phase, order, progress }: { phase: Phase; order: Order | nul
         animation: moving ? "carBounce 0.3s ease-in-out infinite alternate" : "none",
         fontSize: 36,
         lineHeight: 1,
-      }}>🚗</div>
+      }}>{vehicleEmoji}</div>
 
       {/* Headlight beams */}
       {moving && (
@@ -205,7 +206,7 @@ function RoadView({ phase, order, progress }: { phase: Phase; order: Order | nul
       )}
 
       {/* Status overlays */}
-      {phase === "waiting" && <IdleRoadOverlay />}
+      {phase === "waiting" && <IdleRoadOverlay vehicleEmoji={vehicleEmoji} />}
       {phase === "offline" && <OfflineRoadOverlay />}
       {phase === "at-restaurant" && <AtRestaurantOverlay order={order!} />}
       {phase === "delivered" && <DeliveredOverlay />}
@@ -263,11 +264,11 @@ function RoadOverlay({ children }: { children: React.ReactNode }) {
     }}>{children}</div>
   );
 }
-function IdleRoadOverlay() {
+function IdleRoadOverlay({ vehicleEmoji }: { vehicleEmoji: string }) {
   return (
     <RoadOverlay>
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: 36, marginBottom: 8, animation: "carBounce 1s ease-in-out infinite alternate" }}>🚗</div>
+        <div style={{ fontSize: 36, marginBottom: 8, animation: "carBounce 1s ease-in-out infinite alternate" }}>{vehicleEmoji}</div>
         <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>Ready to roll</div>
         <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>Waiting for an order...</div>
       </div>
@@ -319,7 +320,7 @@ function CancelledOverlay() {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function Game() {
+export default function Game({ profile }: { profile: DriverProfile }) {
   const phaseRef = useRef<Phase>("offline");
   const moveInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -424,14 +425,14 @@ export default function Game() {
     if (pingInterval.current) { clearInterval(pingInterval.current); pingInterval.current = null; }
     playAccept();
     phaseRef.current = "to-restaurant"; setPhase("to-restaurant");
-    const steps = Math.floor(rand(40, 90));
+    const steps = Math.floor(rand(130, 220));
     startMoving("to-restaurant", steps);
   }, [order]);
 
   const handlePickedUp = useCallback(() => {
     playTap();
     phaseRef.current = "to-customer"; setPhase("to-customer");
-    const steps = Math.floor(rand(50, 100));
+    const steps = Math.floor(rand(150, 260));
     startMoving("to-customer", steps);
   }, []);
 
@@ -488,10 +489,13 @@ export default function Game() {
           flexShrink: 0, background: "rgba(0,0,0,0.9)", borderBottom: "1px solid rgba(255,255,255,0.06)",
           padding: "10px 16px", display: "flex", gap: 10, alignItems: "center",
         }}>
-          {/* Brand */}
-          <div style={{ background: "#111", borderRadius: 7, padding: "5px 9px", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.08)" }}>
-            <span style={{ fontSize: 14 }}>🚗</span>
-            <span style={{ color: "#fff", fontWeight: 800, fontSize: 11, letterSpacing: "0.5px" }}>UBER EATS</span>
+          {/* Driver badge */}
+          <div style={{ background: "#1a1a1a", borderRadius: 7, padding: "5px 9px", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
+            <span style={{ fontSize: 14 }}>{profile.avatar}</span>
+            <div>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 11, lineHeight: 1.1 }}>{profile.name.split(" ")[0]}</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9 }}>{profile.vehicleEmoji} {profile.vehicle}</div>
+            </div>
           </div>
 
           {/* Rank badge */}
@@ -521,7 +525,7 @@ export default function Game() {
       )}
 
       {/* ── Road View ── */}
-      <RoadView phase={phase} order={order} progress={progress} />
+      <RoadView phase={phase} order={order} progress={progress} vehicleEmoji={profile.vehicleEmoji} />
 
       {/* ── Bottom Panel ── */}
       <div style={{ flexShrink: 0 }}>
