@@ -1,195 +1,353 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-declare global {
-  interface Window { L: typeof import("leaflet"); }
-}
-
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Phase = "offline" | "waiting" | "incoming" | "cancelled" | "to-restaurant" | "at-restaurant" | "to-customer" | "delivered";
 
 interface MenuItem { name: string; price: number; }
-interface Restaurant {
-  name: string; emoji: string; color: string;
-  lat: number; lng: number; address: string;
-  menu: MenuItem[];
-}
-interface Customer { name: string; rating: number; lat: number; lng: number; address: string; }
-interface Order {
-  restaurant: Restaurant;
-  customer: Customer;
-  items: MenuItem[];
-  total: number;
-  distance: string;
-  duration: string;
-}
+interface Restaurant { name: string; emoji: string; color: string; address: string; menu: MenuItem[]; }
+interface Customer { name: string; rating: number; address: string; orders: number; }
+interface Order { restaurant: Restaurant; customer: Customer; items: MenuItem[]; total: number; distance: string; duration: string; }
+
+// ─── Rank System ──────────────────────────────────────────────────────────────
+
+interface Rank { name: string; icon: string; color: string; gradient: string; min: number; max: number | null; perks: string[]; }
+const RANKS: Rank[] = [
+  { name: "Blue",     icon: "🔵", color: "#4FC3F7", gradient: "linear-gradient(135deg,#0277BD,#4FC3F7)", min: 0,  max: 9,    perks: ["Standard order matching", "Basic driver support"] },
+  { name: "Gold",     icon: "🥇", color: "#FFD54F", gradient: "linear-gradient(135deg,#F57F17,#FFD54F)", min: 10, max: 24,   perks: ["Priority order matching", "Gold driver badge", "Dedicated support line"] },
+  { name: "Platinum", icon: "💎", color: "#B0BEC5", gradient: "linear-gradient(135deg,#546E7A,#CFD8DC)", min: 25, max: 49,   perks: ["Surge pricing access", "Free Uber One membership", "Top restaurant priority"] },
+  { name: "Diamond",  icon: "✨", color: "#CE93D8", gradient: "linear-gradient(135deg,#6A1B9A,#E040FB)", min: 50, max: null, perks: ["Earnings boost +15%", "Exclusive high-value orders", "VIP driver lounge"] },
+];
+function getRank(t: number): Rank { return [...RANKS].reverse().find(r => t >= r.min) ?? RANKS[0]; }
+function getNextRank(t: number): Rank | null { const i = RANKS.findIndex(r => r === getRank(t)); return i < RANKS.length - 1 ? RANKS[i + 1] : null; }
+function rankPct(t: number): number { const r = getRank(t); if (!r.max) return 100; return Math.min(100, ((t - r.min) / (r.max - r.min + 1)) * 100); }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
 const RESTAURANTS: Restaurant[] = [
-  { name: "McDonald's", emoji: "🍔", color: "#FF6000",
-    lat: 52.9530, lng: -1.1481, address: "Market Square, Nottingham",
-    menu: [{ name: "Big Mac Meal", price: 7.49 }, { name: "McFlurry", price: 2.19 }, { name: "Chicken McNuggets x6", price: 4.39 }, { name: "Quarter Pounder", price: 6.99 }, { name: "Fries (Large)", price: 2.89 }] },
-  { name: "Burger King", emoji: "👑", color: "#D62300",
-    lat: 52.9534, lng: -1.1502, address: "Upper Parliament St",
-    menu: [{ name: "Whopper Meal", price: 8.29 }, { name: "Chicken Royale", price: 6.49 }, { name: "Onion Rings", price: 2.49 }, { name: "Bacon Double Cheese", price: 7.99 }, { name: "Vanilla Shake", price: 2.79 }] },
-  { name: "KFC", emoji: "🍗", color: "#E4002B",
-    lat: 52.9502, lng: -1.1478, address: "Clumber Street",
-    menu: [{ name: "Zinger Burger Meal", price: 7.99 }, { name: "Bucket for One", price: 9.49 }, { name: "Popcorn Chicken", price: 3.99 }, { name: "Gravy", price: 1.29 }, { name: "Krushems", price: 2.99 }] },
-  { name: "Pizza Hut", emoji: "🍕", color: "#EE3124",
-    lat: 52.9547, lng: -1.1464, address: "Victoria Centre",
-    menu: [{ name: "Pepperoni Passion (M)", price: 13.99 }, { name: "BBQ Chicken (M)", price: 13.49 }, { name: "Dough Balls x8", price: 4.99 }, { name: "Garlic Bread", price: 3.49 }, { name: "Cheesy Bites", price: 5.99 }] },
-  { name: "Nando's", emoji: "🔥", color: "#FF6600",
-    lat: 52.9513, lng: -1.1498, address: "Trinity Square",
-    menu: [{ name: "1/2 Chicken (Hot)", price: 9.75 }, { name: "Peri Peri Wrap", price: 8.25 }, { name: "Peri Fries", price: 3.75 }, { name: "Mango Sorbet", price: 3.50 }, { name: "Halloumi Starter", price: 4.95 }] },
-  { name: "Subway", emoji: "🥖", color: "#009743",
-    lat: 52.9567, lng: -1.162, address: "Derby Road",
-    menu: [{ name: "Foot-long Meatball", price: 7.49 }, { name: "6\" BMT", price: 5.99 }, { name: "Veggie Delite", price: 5.49 }, { name: "Cookies x3", price: 2.49 }, { name: "Footlong Chicken", price: 7.99 }] },
-  { name: "Wagamama", emoji: "🍜", color: "#A00000",
-    lat: 52.9528, lng: -1.149, address: "Cornerhouse",
-    menu: [{ name: "Chicken Katsu Curry", price: 13.50 }, { name: "Ramen Noodle Bowl", price: 12.95 }, { name: "Gyoza x6", price: 6.50 }, { name: "Bang Bang Cauliflower", price: 8.50 }, { name: "Matcha Ice Cream", price: 4.50 }] },
-  { name: "Greggs", emoji: "🥐", color: "#0066CC",
-    lat: 52.9612, lng: -1.1392, address: "Mansfield Road",
-    menu: [{ name: "Sausage Roll", price: 1.35 }, { name: "Steak Bake", price: 1.75 }, { name: "Chicken Bake", price: 1.75 }, { name: "Yum Yum", price: 0.99 }, { name: "Latte", price: 1.75 }] },
+  { name: "McDonald's",  emoji: "🍔", color: "#FF6000", address: "Market Square, Nottingham",
+    menu: [{ name: "Big Mac Meal", price: 7.49 }, { name: "McFlurry", price: 2.19 }, { name: "Chicken McNuggets x6", price: 4.39 }, { name: "Fries (Large)", price: 2.89 }] },
+  { name: "Burger King", emoji: "👑", color: "#D62300", address: "Upper Parliament St",
+    menu: [{ name: "Whopper Meal", price: 8.29 }, { name: "Chicken Royale", price: 6.49 }, { name: "Onion Rings", price: 2.49 }, { name: "Vanilla Shake", price: 2.79 }] },
+  { name: "KFC",         emoji: "🍗", color: "#E4002B", address: "Clumber Street",
+    menu: [{ name: "Zinger Burger Meal", price: 7.99 }, { name: "Bucket for One", price: 9.49 }, { name: "Popcorn Chicken", price: 3.99 }, { name: "Gravy", price: 1.29 }] },
+  { name: "Pizza Hut",   emoji: "🍕", color: "#EE3124", address: "Victoria Centre",
+    menu: [{ name: "Pepperoni Passion (M)", price: 13.99 }, { name: "BBQ Chicken (M)", price: 13.49 }, { name: "Dough Balls x8", price: 4.99 }, { name: "Garlic Bread", price: 3.49 }] },
+  { name: "Nando's",     emoji: "🔥", color: "#FF6600", address: "Trinity Square",
+    menu: [{ name: "1/2 Chicken (Hot)", price: 9.75 }, { name: "Peri Peri Wrap", price: 8.25 }, { name: "Peri Fries", price: 3.75 }, { name: "Halloumi Starter", price: 4.95 }] },
+  { name: "Subway",      emoji: "🥖", color: "#009743", address: "Derby Road",
+    menu: [{ name: "Foot-long Meatball", price: 7.49 }, { name: "6\" BMT", price: 5.99 }, { name: "Veggie Delite", price: 5.49 }, { name: "Cookies x3", price: 2.49 }] },
+  { name: "Wagamama",    emoji: "🍜", color: "#A00000", address: "Cornerhouse",
+    menu: [{ name: "Chicken Katsu Curry", price: 13.50 }, { name: "Ramen Noodle Bowl", price: 12.95 }, { name: "Gyoza x6", price: 6.50 }, { name: "Matcha Ice Cream", price: 4.50 }] },
+  { name: "Greggs",      emoji: "🥐", color: "#0066CC", address: "Mansfield Road",
+    menu: [{ name: "Sausage Roll", price: 1.35 }, { name: "Steak Bake", price: 1.75 }, { name: "Chicken Bake", price: 1.75 }, { name: "Latte", price: 1.75 }] },
 ];
 
 const CUSTOMERS: Customer[] = [
-  { name: "James R.", rating: 4.92, lat: 52.949, lng: -1.162, address: "42 Castle Blvd, Nottingham" },
-  { name: "Sophie M.", rating: 4.85, lat: 52.9445, lng: -1.148, address: "17 Lenton Ave, Nottingham" },
-  { name: "Chris T.", rating: 4.97, lat: 52.9601, lng: -1.171, address: "8 Forest Rd West" },
-  { name: "Priya K.", rating: 4.78, lat: 52.9461, lng: -1.139, address: "3 Meadows Way, NG2" },
-  { name: "Daniel W.", rating: 4.88, lat: 52.9657, lng: -1.145, address: "55 Gregory Blvd" },
-  { name: "Emma L.", rating: 4.95, lat: 52.9488, lng: -1.175, address: "22 Wollaton Rd" },
-  { name: "Ravi S.", rating: 4.81, lat: 52.9623, lng: -1.158, address: "11 Alfreton Rd" },
-  { name: "Lucy H.", rating: 4.90, lat: 52.9427, lng: -1.163, address: "7 Bunbury Ct, NG7" },
+  { name: "James R.",  rating: 4.92, address: "42 Castle Blvd, NG7",  orders: 347 },
+  { name: "Sophie M.", rating: 4.85, address: "17 Lenton Ave, NG7",   orders: 182 },
+  { name: "Chris T.",  rating: 4.97, address: "8 Forest Rd West, NG7",orders: 521 },
+  { name: "Priya K.",  rating: 4.78, address: "3 Meadows Way, NG2",   orders: 94  },
+  { name: "Daniel W.", rating: 4.88, address: "55 Gregory Blvd, NG7", orders: 263 },
+  { name: "Emma L.",   rating: 4.95, address: "22 Wollaton Rd, NG8",  orders: 408 },
+  { name: "Ravi S.",   rating: 4.81, address: "11 Alfreton Rd, NG7",  orders: 137 },
+  { name: "Lucy H.",   rating: 4.90, address: "7 Bunbury Ct, NG7",    orders: 312 },
 ];
 
-const DRIVER_START: [number, number] = [52.9541, -1.155];
-const STEP = 0.0003;
-const TIPS = ["£0.00", "£0.50", "£1.00", "£1.50", "£2.00"];
+const TIPS = [0, 0, 0, 0.5, 0.5, 1, 1, 1.5, 2, 2.5];
+const DURATIONS = ["4 min", "6 min", "8 min", "10 min", "12 min", "7 min", "9 min"];
+const DISTANCES = ["0.8 km", "1.2 km", "1.6 km", "2.1 km", "2.4 km", "1.9 km", "3.1 km"];
 
-function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+function pick<T>(a: T[]): T { return a[Math.floor(Math.random() * a.length)]; }
 function rand(min: number, max: number) { return Math.random() * (max - min) + min; }
 function fmt(n: number) { return `£${n.toFixed(2)}`; }
-function etaFromDist(deg: number) {
-  const km = deg * 111;
-  return `${Math.max(1, Math.round((km / 25) * 60))} min`;
-}
-function distLabel(deg: number) { return `${(deg * 111).toFixed(1)} km`; }
-function dist(a: [number, number], b: [number, number]) {
-  const d = [b[0] - a[0], b[1] - a[1]];
-  return Math.sqrt(d[0] * d[0] + d[1] * d[1]);
-}
-function step(cur: [number, number], tgt: [number, number]): { pos: [number, number]; arrived: boolean } {
-  const d = dist(cur, tgt);
-  if (d <= STEP) return { pos: tgt, arrived: true };
-  const r = STEP / d;
-  return { pos: [cur[0] + (tgt[0] - cur[0]) * r, cur[1] + (tgt[1] - cur[1]) * r], arrived: false };
-}
 
 function generateOrder(): Order {
   const restaurant = pick(RESTAURANTS);
   const customer = pick(CUSTOMERS);
   const count = Math.floor(rand(1, 4));
-  const shuffled = [...restaurant.menu].sort(() => Math.random() - 0.5);
-  const items = shuffled.slice(0, count);
-  const itemsTotal = items.reduce((s, i) => s + i.price, 0);
-  const deliveryFee = parseFloat(rand(1.5, 3.5).toFixed(2));
-  const total = parseFloat((itemsTotal * 0.35 + deliveryFee).toFixed(2));
-  const d = dist([restaurant.lat, restaurant.lng], [customer.lat, customer.lng]);
-  return {
-    restaurant, customer, items, total,
-    distance: distLabel(d + rand(0.005, 0.02)),
-    duration: etaFromDist(d + rand(0.005, 0.02)),
-  };
+  const items = [...restaurant.menu].sort(() => Math.random() - 0.5).slice(0, count);
+  const fare = parseFloat((items.reduce((s, i) => s + i.price, 0) * 0.35 + rand(1.5, 3.5)).toFixed(2));
+  return { restaurant, customer, items, total: fare, distance: pick(DISTANCES), duration: pick(DURATIONS) };
 }
 
-// ─── Map helpers ──────────────────────────────────────────────────────────────
+// ─── Animated Road View ───────────────────────────────────────────────────────
 
-function pinIcon(L: typeof import("leaflet"), color: string, emoji: string) {
-  return L.divIcon({
-    html: `<div style="width:44px;height:52px;position:relative;filter:drop-shadow(0 3px 8px rgba(0,0,0,0.5))">
-      <div style="width:44px;height:44px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:${color};display:flex;align-items:center;justify-content:center;border:3px solid rgba(255,255,255,0.9)">
-        <span style="transform:rotate(45deg);font-size:20px;line-height:1">${emoji}</span>
-      </div></div>`,
-    className: "", iconSize: [44, 52], iconAnchor: [22, 52],
-  });
-}
-function carIcon(L: typeof import("leaflet")) {
-  return L.divIcon({
-    html: `<div style="width:40px;height:40px;background:#1a1a1a;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,0.6);font-size:20px">🚗</div>`,
-    className: "", iconSize: [40, 40], iconAnchor: [20, 20],
-  });
+function RoadView({ phase, order, progress }: { phase: Phase; order: Order | null; progress: number }) {
+  const moving = phase === "to-restaurant" || phase === "to-customer";
+  const atRest = phase === "at-restaurant";
+  const toCustomer = phase === "to-customer";
+  const destEmoji = toCustomer ? "🏠" : (order?.restaurant.emoji ?? "🍔");
+  const destLabel = toCustomer ? order?.customer.name : order?.restaurant.name;
+  const destColor = toCustomer ? "#276EF1" : (order?.restaurant.color ?? "#06C167");
+
+  return (
+    <div style={{ position: "relative", flex: 1, background: "#111", overflow: "hidden", minHeight: 0 }}>
+      {/* Sky */}
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom,#0a0a1a 0%,#111827 40%,#1a1a1a 100%)" }} />
+
+      {/* City silhouette */}
+      <Skyline />
+
+      {/* Road surface */}
+      <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "44%", top: "28%", background: "#1c1c1c", boxShadow: "0 0 40px rgba(0,0,0,0.8)" }}>
+        {/* Road edges */}
+        <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#FFD700", opacity: 0.6 }} />
+        <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 4, background: "#FFD700", opacity: 0.6 }} />
+
+        {/* Center dashes — animate when moving */}
+        <div style={{
+          position: "absolute", left: "50%", top: 0, bottom: 0, width: 4,
+          transform: "translateX(-50%)",
+          backgroundImage: "repeating-linear-gradient(to bottom, #fff 0px, #fff 28px, transparent 28px, transparent 56px)",
+          backgroundSize: "4px 56px",
+          animation: moving ? "roadScroll 0.4s linear infinite" : "none",
+          opacity: 0.35,
+        }} />
+
+        {/* Progress fill */}
+        {(moving || atRest) && (
+          <div style={{
+            position: "absolute", bottom: 0, left: 0, right: 0,
+            height: `${100 - progress}%`,
+            background: `linear-gradient(to top, ${destColor}18, transparent)`,
+            transition: "height 0.3s ease",
+          }} />
+        )}
+      </div>
+
+      {/* Side lane markings */}
+      {["-28%", "72%"].map((left, i) => (
+        <div key={i} style={{
+          position: "absolute", top: "28%", bottom: 0, left, width: "6%",
+          background: "#161616",
+          borderLeft: i === 0 ? "3px solid #2a2a2a" : "none",
+          borderRight: i === 1 ? "3px solid #2a2a2a" : "none",
+        }}>
+          <div style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "repeating-linear-gradient(to bottom, #2a2a2a 0px, #2a2a2a 20px, transparent 20px, transparent 40px)",
+            animation: moving ? "roadScroll 0.4s linear infinite" : "none",
+            opacity: 0.5,
+          }} />
+        </div>
+      ))}
+
+      {/* Destination building at top */}
+      {order && (phase === "to-restaurant" || phase === "at-restaurant" || phase === "to-customer") && (
+        <div style={{
+          position: "absolute", top: "6%", left: "50%", transform: "translateX(-50%)",
+          display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
+          animation: "fadeIn 0.5s ease",
+          zIndex: 10,
+        }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: 14,
+            background: destColor + "22",
+            border: `2px solid ${destColor}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 26,
+            boxShadow: `0 0 20px ${destColor}66`,
+            animation: atRest ? "glow 1.5s ease-in-out infinite alternate" : "none",
+          }}>{destEmoji}</div>
+          <div style={{
+            background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)",
+            border: `1px solid ${destColor}44`,
+            borderRadius: 8, padding: "4px 12px",
+            color: "#fff", fontSize: 12, fontWeight: 600,
+          }}>{destLabel}</div>
+        </div>
+      )}
+
+      {/* Progress bar along road */}
+      {(moving) && (
+        <div style={{
+          position: "absolute", top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)",
+          width: "38%",
+        }}>
+          <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 4, height: 4, overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 4, background: destColor, width: `${progress}%`, transition: "width 0.3s ease" }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>Start</span>
+            <span style={{ color: destColor, fontSize: 10, fontWeight: 700 }}>{Math.round(progress)}%</span>
+            <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 10 }}>Dest.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Car */}
+      <div style={{
+        position: "absolute",
+        bottom: atRest ? "68%" : (moving ? `${20 + progress * 0.52}%` : "22%"),
+        left: "50%", transform: "translateX(-50%)",
+        transition: "bottom 0.3s ease",
+        zIndex: 20,
+        filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.8))",
+        animation: moving ? "carBounce 0.3s ease-in-out infinite alternate" : "none",
+        fontSize: 36,
+        lineHeight: 1,
+      }}>🚗</div>
+
+      {/* Headlight beams */}
+      {moving && (
+        <div style={{
+          position: "absolute",
+          bottom: `${20 + progress * 0.52 + 5}%`,
+          left: "50%", transform: "translateX(-50%)",
+          width: 60, height: 80,
+          background: "linear-gradient(to top, rgba(255,240,150,0.15), transparent)",
+          clipPath: "polygon(20% 100%, 80% 100%, 100% 0%, 0% 0%)",
+          zIndex: 15,
+        }} />
+      )}
+
+      {/* Status overlays */}
+      {phase === "waiting" && <IdleRoadOverlay />}
+      {phase === "offline" && <OfflineRoadOverlay />}
+      {phase === "at-restaurant" && <AtRestaurantOverlay order={order!} />}
+      {phase === "delivered" && <DeliveredOverlay />}
+      {phase === "cancelled" && <CancelledOverlay />}
+    </div>
+  );
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function Skyline() {
+  const buildings = [
+    { left: "2%", w: 28, h: 90 }, { left: "7%", w: 18, h: 60 }, { left: "12%", w: 22, h: 110 },
+    { left: "17%", w: 16, h: 75 }, { left: "22%", w: 30, h: 130 }, { left: "29%", w: 14, h: 55 },
+    { left: "55%", w: 30, h: 120 }, { left: "62%", w: 20, h: 85 }, { left: "68%", w: 16, h: 65 },
+    { left: "73%", w: 26, h: 100 }, { left: "80%", w: 18, h: 70 }, { left: "86%", w: 32, h: 140 },
+    { left: "92%", w: 14, h: 55 },
+  ];
+  return (
+    <div style={{ position: "absolute", bottom: "28%", left: 0, right: 0, height: 160, overflow: "hidden" }}>
+      {buildings.map((b, i) => (
+        <div key={i} style={{
+          position: "absolute", bottom: 0, left: b.left, width: b.w, height: b.h,
+          background: `hsl(${220 + i * 5}, 15%, ${8 + (i % 3) * 3}%)`,
+          borderTop: `1px solid rgba(255,255,255,0.04)`,
+        }}>
+          {Array.from({ length: Math.floor(b.h / 14) }).map((_, j) => (
+            <div key={j} style={{
+              position: "absolute", top: j * 14 + 3, left: 3, right: 3, height: 6,
+              background: Math.random() > 0.6 ? "rgba(255,240,150,0.15)" : "transparent",
+              display: "flex", gap: 2,
+            }}>
+              {Array.from({ length: Math.floor(b.w / 7) }).map((_, k) => (
+                <div key={k} style={{ flex: 1, background: Math.random() > 0.5 ? "rgba(255,240,150,0.2)" : "transparent" }} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ))}
+      {/* Street lights */}
+      {["33%", "67%"].map((l, i) => (
+        <div key={i} style={{ position: "absolute", bottom: 0, left: l, width: 3, height: 50, background: "#333" }}>
+          <div style={{ position: "absolute", top: -6, left: -6, width: 14, height: 6, background: "#444", borderRadius: "3px 3px 0 0" }} />
+          <div style={{ position: "absolute", top: -10, left: -4, width: 10, height: 4, background: "rgba(255,240,150,0.5)", borderRadius: 2, boxShadow: "0 0 12px rgba(255,240,150,0.6)" }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RoadOverlay({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+      background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)", zIndex: 30,
+      animation: "fadeIn 0.3s ease",
+    }}>{children}</div>
+  );
+}
+function IdleRoadOverlay() {
+  return (
+    <RoadOverlay>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 8, animation: "carBounce 1s ease-in-out infinite alternate" }}>🚗</div>
+        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>Ready to roll</div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 4 }}>Waiting for an order...</div>
+      </div>
+    </RoadOverlay>
+  );
+}
+function OfflineRoadOverlay() {
+  return (
+    <RoadOverlay>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 15 }}>You're offline</div>
+        <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 12, marginTop: 4 }}>Go online to start earning</div>
+      </div>
+    </RoadOverlay>
+  );
+}
+function AtRestaurantOverlay({ order }: { order: Order }) {
+  return (
+    <RoadOverlay>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 42, marginBottom: 8, animation: "glow 1s ease-in-out infinite alternate" }}>{order.restaurant.emoji}</div>
+        <div style={{ color: "#06C167", fontWeight: 800, fontSize: 18 }}>Arrived!</div>
+        <div style={{ color: "rgba(255,255,255,0.55)", fontSize: 13, marginTop: 4 }}>Collect order from {order.restaurant.name}</div>
+      </div>
+    </RoadOverlay>
+  );
+}
+function DeliveredOverlay() {
+  return (
+    <RoadOverlay>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 42, marginBottom: 8 }}>✅</div>
+        <div style={{ color: "#06C167", fontWeight: 800, fontSize: 18 }}>Delivered!</div>
+      </div>
+    </RoadOverlay>
+  );
+}
+function CancelledOverlay() {
+  return (
+    <RoadOverlay>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 8 }}>🚫</div>
+        <div style={{ color: "rgba(255,255,255,0.7)", fontWeight: 700, fontSize: 15 }}>Order Declined</div>
+        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 4 }}>Finding next order...</div>
+      </div>
+    </RoadOverlay>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Game() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<ReturnType<typeof window.L.map> | null>(null);
-  const driverMarker = useRef<ReturnType<typeof window.L.marker> | null>(null);
-  const restMarker = useRef<ReturnType<typeof window.L.marker> | null>(null);
-  const custMarker = useRef<ReturnType<typeof window.L.marker> | null>(null);
-  const routeLine = useRef<ReturnType<typeof window.L.polyline> | null>(null);
-  const driverPos = useRef<[number, number]>(DRIVER_START);
   const phaseRef = useRef<Phase>("offline");
   const moveInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const progressRef = useRef(0);
+  const totalStepsRef = useRef(100);
 
   const [phase, setPhase] = useState<Phase>("offline");
   const [order, setOrder] = useState<Order | null>(null);
-  const [eta, setEta] = useState("");
   const [countdown, setCountdown] = useState(5);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [tripCount, setTripCount] = useState(0);
   const [sessionTime, setSessionTime] = useState(0);
-  const sessionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [tip] = useState(() => pick(TIPS));
+  const [progress, setProgress] = useState(0);
+  const [rankedUp, setRankedUp] = useState<Rank | null>(null);
+  const [currentTip, setCurrentTip] = useState(0);
 
-  // Init map
-  useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
-    const L = window.L;
-    const map = L.map(mapRef.current, { zoomControl: false, attributionControl: true })
-      .setView(DRIVER_START, 14);
-    mapInstance.current = map;
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: "abcd", maxZoom: 20,
-    }).addTo(map);
-    L.control.zoom({ position: "topright" }).addTo(map);
-    const dm = L.marker(DRIVER_START, { icon: carIcon(L) }).addTo(map);
-    driverMarker.current = dm;
-    const rl = L.polyline([], { color: "#06C167", weight: 4, opacity: 0.7, dashArray: "8 6" }).addTo(map);
-    routeLine.current = rl;
-    return () => { map.remove(); mapInstance.current = null; };
-  }, []);
-
-  // Session timer
   useEffect(() => {
     if (phase === "offline") {
-      if (sessionTimerRef.current) clearInterval(sessionTimerRef.current);
-    } else if (phase === "waiting" && !sessionTimerRef.current) {
+      if (sessionTimerRef.current) { clearInterval(sessionTimerRef.current); sessionTimerRef.current = null; }
+    } else if (!sessionTimerRef.current) {
       sessionTimerRef.current = setInterval(() => setSessionTime(t => t + 1), 1000);
     }
   }, [phase]);
 
   function fmtTime(s: number) {
-    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sc = s % 60;
+    return h > 0 ? `${h}:${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}` : `${m}:${String(sc).padStart(2,"0")}`;
   }
-
-  const goOnline = useCallback(() => {
-    phaseRef.current = "waiting";
-    setPhase("waiting");
-    setTimeout(spawnOrder, rand(1500, 3000));
-  }, []);
-
-  const goOffline = useCallback(() => {
-    clearAll();
-    phaseRef.current = "offline";
-    setPhase("offline");
-    if (sessionTimerRef.current) { clearInterval(sessionTimerRef.current); sessionTimerRef.current = null; }
-  }, []);
 
   function clearAll() {
     if (moveInterval.current) clearInterval(moveInterval.current);
@@ -201,22 +359,10 @@ export default function Game() {
     if (phaseRef.current !== "waiting") return;
     const o = generateOrder();
     setOrder(o);
+    setCurrentTip(pick(TIPS));
     phaseRef.current = "incoming";
     setPhase("incoming");
     setCountdown(5);
-
-    const L = window.L;
-    if (restMarker.current) { restMarker.current.remove(); restMarker.current = null; }
-    if (custMarker.current) { custMarker.current.remove(); custMarker.current = null; }
-    if (mapInstance.current) {
-      restMarker.current = L.marker([o.restaurant.lat, o.restaurant.lng], {
-        icon: pinIcon(L, o.restaurant.color, o.restaurant.emoji),
-      }).addTo(mapInstance.current).bindPopup(`<b>${o.restaurant.name}</b>`);
-      custMarker.current = L.marker([o.customer.lat, o.customer.lng], {
-        icon: pinIcon(L, "#276EF1", "🏠"),
-      }).addTo(mapInstance.current).bindPopup(`<b>${o.customer.name}</b>`);
-    }
-
     if (countdownInterval.current) clearInterval(countdownInterval.current);
     countdownInterval.current = setInterval(() => {
       setCountdown(prev => {
@@ -233,220 +379,241 @@ export default function Game() {
 
   const handleDecline = useCallback(() => {
     if (countdownInterval.current) { clearInterval(countdownInterval.current); countdownInterval.current = null; }
-    phaseRef.current = "cancelled";
-    setPhase("cancelled");
+    phaseRef.current = "cancelled"; setPhase("cancelled");
     setTimeout(() => {
       if (phaseRef.current !== "cancelled") return;
-      phaseRef.current = "waiting";
-      setPhase("waiting");
-      setTimeout(spawnOrder, rand(2000, 4000));
-    }, 1500);
+      phaseRef.current = "waiting"; setPhase("waiting");
+      setTimeout(spawnOrder, rand(1500, 3500));
+    }, 1800);
   }, [spawnOrder]);
+
+  function startMoving(targetPhase: "to-restaurant" | "to-customer", steps: number) {
+    progressRef.current = 0;
+    totalStepsRef.current = steps;
+    setProgress(0);
+    if (moveInterval.current) clearInterval(moveInterval.current);
+    moveInterval.current = setInterval(() => {
+      progressRef.current = Math.min(100, progressRef.current + (100 / steps));
+      setProgress(Math.min(100, progressRef.current));
+      if (progressRef.current >= 100) {
+        clearInterval(moveInterval.current!); moveInterval.current = null;
+        if (targetPhase === "to-restaurant") {
+          phaseRef.current = "at-restaurant"; setPhase("at-restaurant");
+        } else {
+          phaseRef.current = "delivered"; setPhase("delivered");
+        }
+      }
+    }, 100);
+  }
 
   const handleAccept = useCallback(() => {
     if (!order) return;
     if (countdownInterval.current) { clearInterval(countdownInterval.current); countdownInterval.current = null; }
-    phaseRef.current = "to-restaurant";
-    setPhase("to-restaurant");
-    const tgt: [number, number] = [order.restaurant.lat, order.restaurant.lng];
-    setEta(etaFromDist(dist(driverPos.current, tgt)));
-    if (routeLine.current) {
-      routeLine.current.setLatLngs([driverPos.current, tgt]);
-      routeLine.current.setStyle({ color: "#06C167" });
-    }
-    if (moveInterval.current) clearInterval(moveInterval.current);
-    moveInterval.current = setInterval(() => tickMove("to-restaurant"), 100);
+    phaseRef.current = "to-restaurant"; setPhase("to-restaurant");
+    const steps = Math.floor(rand(40, 90));
+    startMoving("to-restaurant", steps);
   }, [order]);
-
-  function tickMove(direction: "to-restaurant" | "to-customer") {
-    if (!order || !driverMarker.current) return;
-    const tgt: [number, number] = direction === "to-restaurant"
-      ? [order.restaurant.lat, order.restaurant.lng]
-      : [order.customer.lat, order.customer.lng];
-    const { pos, arrived } = step(driverPos.current, tgt);
-    driverPos.current = pos;
-    driverMarker.current.setLatLng(pos);
-    setEta(etaFromDist(dist(pos, tgt)));
-    if (routeLine.current) routeLine.current.setLatLngs([pos, tgt]);
-    if (mapInstance.current) mapInstance.current.panTo(pos, { animate: true, duration: 0.1 });
-    if (arrived) {
-      clearInterval(moveInterval.current!); moveInterval.current = null;
-      if (direction === "to-restaurant") {
-        phaseRef.current = "at-restaurant"; setPhase("at-restaurant"); setEta("");
-      } else {
-        phaseRef.current = "delivered"; setPhase("delivered"); setEta("");
-        if (routeLine.current) routeLine.current.setLatLngs([]);
-        setTripCount(t => t + 1);
-        setTotalEarnings(e => parseFloat((e + (order?.total ?? 0)).toFixed(2)));
-      }
-    }
-  }
 
   const handlePickedUp = useCallback(() => {
-    if (!order) return;
     phaseRef.current = "to-customer"; setPhase("to-customer");
-    const tgt: [number, number] = [order.customer.lat, order.customer.lng];
-    setEta(etaFromDist(dist(driverPos.current, tgt)));
-    if (routeLine.current) {
-      routeLine.current.setLatLngs([driverPos.current, tgt]);
-      routeLine.current.setStyle({ color: "#276EF1" });
-    }
-    if (moveInterval.current) clearInterval(moveInterval.current);
-    moveInterval.current = setInterval(() => tickMove("to-customer"), 100);
-  }, [order]);
+    const steps = Math.floor(rand(50, 100));
+    startMoving("to-customer", steps);
+  }, []);
+
+  const handleDeliveryComplete = useCallback(() => {
+    if (!order) return;
+    const prevRank = getRank(tripCount);
+    const newCount = tripCount + 1;
+    const newRank = getRank(newCount);
+    setTripCount(newCount);
+    setTotalEarnings(e => parseFloat((e + order.total + currentTip).toFixed(2)));
+    if (newRank.name !== prevRank.name) setRankedUp(newRank);
+  }, [order, tripCount, currentTip]);
+
+  useEffect(() => {
+    if (phase === "delivered") handleDeliveryComplete();
+  }, [phase]);
 
   const handleNextOrder = useCallback(() => {
-    if (restMarker.current) { restMarker.current.remove(); restMarker.current = null; }
-    if (custMarker.current) { custMarker.current.remove(); custMarker.current = null; }
+    setRankedUp(null);
+    phaseRef.current = "waiting"; setPhase("waiting");
+    setProgress(0);
+    setTimeout(spawnOrder, rand(1200, 2800));
+  }, [spawnOrder]);
+
+  const goOnline = useCallback(() => {
     phaseRef.current = "waiting"; setPhase("waiting");
     setTimeout(spawnOrder, rand(1500, 3000));
   }, [spawnOrder]);
 
-  const isOffline = phase === "offline";
+  const goOffline = useCallback(() => {
+    clearAll();
+    phaseRef.current = "offline"; setPhase("offline");
+    if (sessionTimerRef.current) { clearInterval(sessionTimerRef.current); sessionTimerRef.current = null; }
+  }, []);
+
+  const rank = getRank(tripCount);
+  const nextRank = getNextRank(tripCount);
+  const pct = rankPct(tripCount);
   const circumference = 2 * Math.PI * 18;
 
   return (
-    <div style={{ position: "relative", height: "100vh", width: "100%", fontFamily: "'Inter', -apple-system, sans-serif", overflow: "hidden" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "'Inter',-apple-system,sans-serif", background: "#111", overflow: "hidden" }}>
 
-      {/* ── Map ── */}
-      <div ref={mapRef} style={{ position: "absolute", inset: 0, filter: isOffline ? "brightness(0.4)" : "none", transition: "filter 0.5s ease" }} />
-
-      {/* ── Top HUD ── */}
-      {!isOffline && (
+      {/* ── Top HUD (online only) ── */}
+      {phase !== "offline" && (
         <div style={{
-          position: "absolute", top: 0, left: 0, right: 0, zIndex: 1000,
-          background: "linear-gradient(to bottom, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%)",
-          padding: "14px 18px 36px",
+          flexShrink: 0, background: "rgba(0,0,0,0.9)", borderBottom: "1px solid rgba(255,255,255,0.06)",
+          padding: "10px 16px", display: "flex", gap: 10, alignItems: "center",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Brand */}
-            <div style={{ background: "#000", borderRadius: 8, padding: "5px 10px", display: "flex", alignItems: "center", gap: 7 }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99z" /></svg>
-              <span style={{ color: "#fff", fontWeight: 700, fontSize: 12, letterSpacing: "0.5px" }}>UBER EATS</span>
-            </div>
-
-            {/* Earnings bar */}
-            <div style={{ flex: 1, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(10px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 10, padding: "7px 14px", display: "flex", gap: 18, alignItems: "center" }}>
-              <HudStat label="Earnings" value={fmt(totalEarnings)} highlight />
-              <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.1)" }} />
-              <HudStat label="Trips" value={String(tripCount)} />
-              <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.1)" }} />
-              <HudStat label="Online" value={fmtTime(sessionTime)} />
-            </div>
-
-            {/* Offline button */}
-            <button onClick={goOffline} style={{
-              background: "#1a1a1a", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8,
-              padding: "7px 12px", color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: 600, cursor: "pointer",
-            }}>Go Offline</button>
+          {/* Brand */}
+          <div style={{ background: "#111", borderRadius: 7, padding: "5px 9px", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.08)" }}>
+            <span style={{ fontSize: 14 }}>🚗</span>
+            <span style={{ color: "#fff", fontWeight: 800, fontSize: 11, letterSpacing: "0.5px" }}>UBER EATS</span>
           </div>
+
+          {/* Rank badge */}
+          <div style={{
+            background: rank.gradient, borderRadius: 7, padding: "5px 10px",
+            display: "flex", alignItems: "center", gap: 5,
+            boxShadow: `0 0 12px ${rank.color}44`,
+          }}>
+            <span style={{ fontSize: 13 }}>{rank.icon}</span>
+            <span style={{ color: "#fff", fontWeight: 800, fontSize: 11 }}>{rank.name}</span>
+          </div>
+
+          {/* Stats */}
+          <div style={{ flex: 1, display: "flex", gap: 0, background: "rgba(255,255,255,0.04)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <HudStat label="Earnings" value={fmt(totalEarnings)} highlight />
+            <div style={{ width: 1, background: "rgba(255,255,255,0.07)" }} />
+            <HudStat label="Trips" value={String(tripCount)} />
+            <div style={{ width: 1, background: "rgba(255,255,255,0.07)" }} />
+            <HudStat label="Online" value={fmtTime(sessionTime)} />
+          </div>
+
+          <button onClick={goOffline} style={{
+            background: "transparent", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7,
+            padding: "6px 10px", color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 600, cursor: "pointer", flexShrink: 0,
+          }}>Offline</button>
         </div>
       )}
 
-      {/* ── ETA Badge ── */}
-      {eta && (phase === "to-restaurant" || phase === "to-customer") && (
-        <div style={{
-          position: "absolute", top: 72, left: "50%", transform: "translateX(-50%)",
-          background: "#000", borderRadius: 20, padding: "7px 18px",
-          color: "#fff", fontWeight: 700, fontSize: 15,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.4)", zIndex: 1000,
-          display: "flex", alignItems: "center", gap: 8,
-        }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill={phase === "to-restaurant" ? "#06C167" : "#276EF1"}>
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z" />
-          </svg>
-          {eta} away
-        </div>
-      )}
+      {/* ── Road View ── */}
+      <RoadView phase={phase} order={order} progress={progress} />
 
       {/* ── Bottom Panel ── */}
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
-        {isOffline && <OfflinePanel earnings={fmt(totalEarnings)} trips={tripCount} onGoOnline={goOnline} />}
+      <div style={{ flexShrink: 0 }}>
+        {phase === "offline" && <OfflinePanel earnings={fmt(totalEarnings)} trips={tripCount} rank={rank} nextRank={nextRank} pct={pct} onGoOnline={goOnline} />}
         {phase === "waiting" && <WaitingPanel onGoOffline={goOffline} />}
         {(phase === "incoming" || phase === "cancelled") && order && (
-          <IncomingPanel
-            order={order} countdown={countdown} circumference={circumference}
-            cancelled={phase === "cancelled"} onAccept={handleAccept} onDecline={handleDecline}
-          />
+          <IncomingPanel order={order} countdown={countdown} circumference={circumference} cancelled={phase === "cancelled"} onAccept={handleAccept} onDecline={handleDecline} />
         )}
-        {phase === "to-restaurant" && order && <NavPanel phase="to-restaurant" order={order} eta={eta} />}
+        {phase === "to-restaurant" && order && <NavPanel direction="to-restaurant" order={order} progress={progress} />}
         {phase === "at-restaurant" && order && <PickupPanel order={order} onPickedUp={handlePickedUp} />}
-        {phase === "to-customer" && order && <NavPanel phase="to-customer" order={order} eta={eta} />}
-        {phase === "delivered" && order && (
-          <DeliveredPanel order={order} tip={tip} onNext={handleNextOrder} />
-        )}
+        {phase === "to-customer" && order && <NavPanel direction="to-customer" order={order} progress={progress} />}
+        {phase === "delivered" && order && <DeliveredPanel order={order} tip={currentTip} rankedUp={rankedUp} onNext={handleNextOrder} />}
       </div>
 
       <style>{`
-        @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.35; } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        .ubtn { transition: all 0.15s ease; cursor: pointer; }
-        .ubtn:hover { filter: brightness(0.88); }
-        .ubtn:active { transform: scale(0.96); }
-        .leaflet-control-attribution { font-size: 9px !important; }
+        @keyframes slideUp { from { transform:translateY(12px);opacity:0 } to { transform:translateY(0);opacity:1 } }
+        @keyframes fadeIn  { from { opacity:0 } to { opacity:1 } }
+        @keyframes roadScroll { from { background-position-y:0 } to { background-position-y:56px } }
+        @keyframes carBounce  { from { transform:translateX(-50%) translateY(0) } to { transform:translateX(-50%) translateY(-3px) } }
+        @keyframes glow { from { box-shadow:0 0 10px currentColor } to { box-shadow:0 0 24px currentColor } }
+        @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.35} }
+        @keyframes rankUp { 0%{transform:scale(0.8);opacity:0}60%{transform:scale(1.05)}100%{transform:scale(1);opacity:1} }
+        @keyframes spin { from{transform:rotate(0deg)}to{transform:rotate(360deg)} }
+        .ubtn { transition:all 0.15s ease;cursor:pointer; }
+        .ubtn:hover { filter:brightness(0.88); }
+        .ubtn:active { transform:scale(0.96); }
       `}</style>
     </div>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── UI Components ────────────────────────────────────────────────────────────
 
 function HudStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div>
-      <div style={{ color: highlight ? "#06C167" : "#fff", fontWeight: 800, fontSize: 14 }}>{value}</div>
-      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, marginTop: 1 }}>{label}</div>
+    <div style={{ flex: 1, padding: "6px 10px" }}>
+      <div style={{ color: highlight ? "#06C167" : "#fff", fontWeight: 800, fontSize: 13 }}>{value}</div>
+      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, marginTop: 1, textTransform: "uppercase", letterSpacing: "0.4px" }}>{label}</div>
     </div>
   );
 }
 
-function Panel({ children, anim = true }: { children: React.ReactNode; anim?: boolean }) {
+function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
-      background: "#1a1a1a", borderRadius: "20px 20px 0 0", padding: "8px 0 0",
-      boxShadow: "0 -8px 32px rgba(0,0,0,0.6)",
-      animation: anim ? "slideUp 0.3s ease" : "none",
-    }}>
-      <div style={{ width: 36, height: 4, background: "rgba(255,255,255,0.12)", borderRadius: 2, margin: "0 auto 14px" }} />
+    <div style={{ background: "#1a1a1a", borderRadius: "18px 18px 0 0", boxShadow: "0 -6px 24px rgba(0,0,0,0.5)", animation: "slideUp 0.25s ease" }}>
+      <div style={{ width: 32, height: 4, background: "rgba(255,255,255,0.1)", borderRadius: 2, margin: "10px auto 12px" }} />
       {children}
     </div>
   );
 }
 
-function AddressRow({ icon, label, address, color }: { icon: string; label: string; address: string; color: string }) {
-  return (
-    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "9px 20px" }}>
-      <div style={{ width: 30, height: 30, borderRadius: "50%", background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }}>
-        <span style={{ fontSize: 13 }}>{icon}</span>
-      </div>
-      <div>
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</div>
-        <div style={{ color: "#fff", fontSize: 13, fontWeight: 500, marginTop: 1 }}>{address}</div>
-      </div>
-    </div>
-  );
-}
-
-function OfflinePanel({ earnings, trips, onGoOnline }: { earnings: string; trips: number; onGoOnline: () => void }) {
+function OfflinePanel({ earnings, trips, rank, nextRank, pct, onGoOnline }: {
+  earnings: string; trips: number; rank: Rank; nextRank: Rank | null; pct: number; onGoOnline: () => void;
+}) {
   return (
     <Panel>
-      <div style={{ padding: "6px 20px 28px" }}>
-        <div style={{ textAlign: "center", marginBottom: 22 }}>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: 6 }}>You're Offline</div>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 32 }}>{earnings}</div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 4 }}>Today · {trips} trip{trips !== 1 ? "s" : ""} completed</div>
+      <div style={{ padding: "0 16px 24px" }}>
+        {/* Rank card */}
+        <div style={{ background: "linear-gradient(135deg,#1e1e1e,#252525)", border: `1px solid ${rank.color}33`, borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: rank.gradient, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: `0 0 16px ${rank.color}55` }}>
+              {rank.icon}
+            </div>
+            <div>
+              <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, letterSpacing: "0.6px", textTransform: "uppercase" }}>Current Rank</div>
+              <div style={{ color: rank.color, fontWeight: 800, fontSize: 20, marginTop: 2 }}>{rank.name}</div>
+            </div>
+            <div style={{ marginLeft: "auto", textAlign: "right" }}>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 20 }}>{earnings}</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>{trips} trip{trips !== 1 ? "s" : ""}</div>
+            </div>
+          </div>
+
+          {/* Perks */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+            {rank.perks.map((p, i) => (
+              <div key={i} style={{ display: "flex", gap: 7, alignItems: "center" }}>
+                <span style={{ color: rank.color, fontSize: 11 }}>✓</span>
+                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>{p}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Progress to next */}
+          {nextRank ? (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{nextRank.icon} Progress to {nextRank.name}</span>
+                <span style={{ color: rank.color, fontSize: 11, fontWeight: 700 }}>{trips}/{nextRank.min} trips</span>
+              </div>
+              <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 4, background: rank.gradient, width: `${pct}%`, transition: "width 0.5s ease" }} />
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.25)", fontSize: 11, marginTop: 5, textAlign: "center" }}>
+                {nextRank.min - trips} more trip{nextRank.min - trips !== 1 ? "s" : ""} to reach {nextRank.name}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", color: rank.color, fontWeight: 700, fontSize: 12, marginTop: 4 }}>
+              ✨ Maximum rank achieved!
+            </div>
+          )}
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        {/* Stats row */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <StatCard label="Acceptance" value="94%" />
           <StatCard label="Completion" value="100%" />
-          <StatCard label="Rating" value="4.93" />
+          <StatCard label="Rating" value="4.93 ⭐" />
         </div>
 
         <button className="ubtn" onClick={onGoOnline} style={{
-          width: "100%", background: "#06C167", border: "none", borderRadius: 14,
-          color: "#fff", fontWeight: 800, fontSize: 17, padding: "17px",
+          width: "100%", background: "#06C167", border: "none", borderRadius: 12,
+          color: "#fff", fontWeight: 800, fontSize: 16, padding: "16px",
         }}>Go Online</button>
       </div>
     </Panel>
@@ -455,9 +622,9 @@ function OfflinePanel({ earnings, trips, onGoOnline }: { earnings: string; trips
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ flex: 1, background: "#242424", borderRadius: 10, padding: "12px 0", textAlign: "center" }}>
-      <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>{value}</div>
-      <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 3 }}>{label}</div>
+    <div style={{ flex: 1, background: "#242424", borderRadius: 10, padding: "10px 0", textAlign: "center" }}>
+      <div style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>{value}</div>
+      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, marginTop: 3 }}>{label}</div>
     </div>
   );
 }
@@ -465,15 +632,15 @@ function StatCard({ label, value }: { label: string; value: string }) {
 function WaitingPanel({ onGoOffline }: { onGoOffline: () => void }) {
   return (
     <Panel>
-      <div style={{ padding: "6px 20px 26px", textAlign: "center" }}>
-        <div style={{ display: "inline-flex", width: 48, height: 48, borderRadius: "50%", background: "#06C16722", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
-          <div style={{ width: 20, height: 20, border: "3px solid #06C167", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.9s linear infinite" }} />
+      <div style={{ padding: "0 16px 22px", textAlign: "center" }}>
+        <div style={{ display: "inline-flex", width: 44, height: 44, borderRadius: "50%", background: "#06C16718", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+          <div style={{ width: 18, height: 18, border: "3px solid #06C167", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         </div>
-        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Finding nearby orders...</div>
-        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginBottom: 20 }}>Stay in the zone to receive requests</div>
+        <div style={{ color: "#fff", fontWeight: 700, fontSize: 15, marginBottom: 3 }}>Finding nearby orders...</div>
+        <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginBottom: 18 }}>Stay in the zone for more requests</div>
         <button className="ubtn" onClick={onGoOffline} style={{
-          background: "#2a2a2a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12,
-          color: "rgba(255,255,255,0.6)", fontWeight: 600, fontSize: 14, padding: "13px 32px",
+          background: "#242424", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 10,
+          color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 13, padding: "11px 28px",
         }}>Go Offline</button>
       </div>
     </Panel>
@@ -481,113 +648,119 @@ function WaitingPanel({ onGoOffline }: { onGoOffline: () => void }) {
 }
 
 function IncomingPanel({ order, countdown, circumference, cancelled, onAccept, onDecline }: {
-  order: Order; countdown: number; circumference: number; cancelled: boolean;
-  onAccept: () => void; onDecline: () => void;
+  order: Order; countdown: number; circumference: number; cancelled: boolean; onAccept: () => void; onDecline: () => void;
 }) {
   const dashOffset = circumference - (countdown / 5) * circumference;
   if (cancelled) {
     return (
       <Panel>
-        <div style={{ padding: "22px 20px 28px", textAlign: "center" }}>
-          <div style={{ fontSize: 34, marginBottom: 8 }}>🚫</div>
-          <div style={{ color: "#fff", fontWeight: 700, fontSize: 17 }}>Order Declined</div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 4 }}>Looking for your next delivery...</div>
+        <div style={{ padding: "16px 16px 22px", textAlign: "center" }}>
+          <div style={{ fontSize: 30, marginBottom: 8 }}>🚫</div>
+          <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>Order Declined</div>
+          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 3 }}>Looking for your next delivery...</div>
         </div>
       </Panel>
     );
   }
   return (
     <Panel>
-      {/* Header */}
-      <div style={{ padding: "0 20px 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>New Delivery Request</div>
-          <div style={{ color: "#06C167", fontWeight: 800, fontSize: 28, marginTop: 2 }}>{fmt(order.total)}</div>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>{order.duration} · {order.distance}</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ background: "#06C167", borderRadius: 7, padding: "3px 9px", color: "#fff", fontWeight: 700, fontSize: 11, marginBottom: 5 }}>EATS</div>
-          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 12 }}>{order.customer.name} · {order.customer.rating} ⭐</div>
-        </div>
-      </div>
-
-      {/* Restaurant card */}
-      <div style={{ background: "#242424", borderRadius: 12, margin: "0 20px 10px", padding: "12px 14px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 9, background: order.restaurant.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{order.restaurant.emoji}</div>
+      <div style={{ padding: "0 16px 20px" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
           <div>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{order.restaurant.name}</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, marginTop: 2 }}>{order.restaurant.address}</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase" }}>New Delivery Request</div>
+            <div style={{ color: "#06C167", fontWeight: 800, fontSize: 26, marginTop: 2 }}>{fmt(order.total)}</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 1 }}>{order.duration} · {order.distance}</div>
           </div>
-          <div style={{ marginLeft: "auto", color: "#06C167", fontWeight: 700, fontSize: 13 }}>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ background: "#06C167", borderRadius: 6, padding: "2px 8px", color: "#fff", fontWeight: 700, fontSize: 10, marginBottom: 4, display: "inline-block" }}>EATS</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>{order.customer.name} · {order.customer.rating} ⭐</div>
+          </div>
         </div>
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-          {order.items.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                <div style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(255,255,255,0.25)" }} />
-                <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>{item.name}</span>
-              </div>
-              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{fmt(item.price)}</span>
+
+        {/* Restaurant row */}
+        <div style={{ background: "#242424", borderRadius: 11, padding: "10px 12px", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 8, background: order.restaurant.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{order.restaurant.emoji}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{order.restaurant.name}</div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{order.restaurant.address}</div>
             </div>
-          ))}
+            <div style={{ color: "#06C167", fontWeight: 700, fontSize: 12 }}>{order.items.length} item{order.items.length !== 1 ? "s" : ""}</div>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 7, display: "flex", flexDirection: "column", gap: 3 }}>
+            {order.items.map((item, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ width: 4, height: 4, borderRadius: "50%", background: "rgba(255,255,255,0.2)" }} />
+                  <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>{item.name}</span>
+                </div>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{fmt(item.price)}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Addresses */}
-      <div style={{ margin: "0 20px", background: "#242424", borderRadius: 12, overflow: "hidden" }}>
-        <AddressRow icon={order.restaurant.emoji} label="Pickup" address={order.restaurant.address} color={order.restaurant.color} />
-        <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "0 16px 0 58px" }} />
-        <AddressRow icon="🏠" label="Dropoff" address={order.customer.address} color="#276EF1" />
-      </div>
+        {/* Addresses */}
+        <div style={{ background: "#242424", borderRadius: 11, overflow: "hidden", marginBottom: 12 }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 12px" }}>
+            <span style={{ fontSize: 14 }}>{order.restaurant.emoji}</span>
+            <div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: "0.4px", textTransform: "uppercase" }}>Pickup</div>
+              <div style={{ color: "#fff", fontSize: 12, fontWeight: 500 }}>{order.restaurant.address}</div>
+            </div>
+          </div>
+          <div style={{ height: 1, background: "rgba(255,255,255,0.04)", margin: "0 12px 0 36px" }} />
+          <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 12px" }}>
+            <span style={{ fontSize: 14 }}>🏠</span>
+            <div>
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 9, fontWeight: 700, letterSpacing: "0.4px", textTransform: "uppercase" }}>Dropoff</div>
+              <div style={{ color: "#fff", fontSize: 12, fontWeight: 500 }}>{order.customer.address}</div>
+            </div>
+          </div>
+        </div>
 
-      {/* Buttons */}
-      <div style={{ padding: "14px 20px 26px", display: "flex", gap: 10, alignItems: "center" }}>
-        <button className="ubtn" onClick={onAccept} style={{
-          flex: 1, background: "#06C167", border: "none", borderRadius: 12,
-          color: "#fff", fontWeight: 700, fontSize: 16, padding: "15px",
-        }}>Accept</button>
-
-        <button className="ubtn" onClick={onDecline} style={{
-          width: 54, height: 54, background: "#2a2a2a", border: "none", borderRadius: 12,
-          position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <svg width="54" height="54" viewBox="0 0 54 54" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-            <circle cx="27" cy="27" r="18" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
-            <circle cx="27" cy="27" r="18" fill="none" stroke="#e53935" strokeWidth="3"
-              strokeDasharray={circumference} strokeDashoffset={dashOffset}
-              strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.9s linear" }} />
-          </svg>
-          <span style={{ position: "relative", zIndex: 1, color: "#e53935", fontWeight: 700, fontSize: 16 }}>✕</span>
-        </button>
+        {/* Buttons */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button className="ubtn" onClick={onAccept} style={{ flex: 1, background: "#06C167", border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px" }}>Accept</button>
+          <button className="ubtn" onClick={onDecline} style={{ width: 52, height: 52, background: "#2a2a2a", border: "none", borderRadius: 11, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="52" height="52" viewBox="0 0 52 52" style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
+              <circle cx="26" cy="26" r="18" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="3" />
+              <circle cx="26" cy="26" r="18" fill="none" stroke="#e53935" strokeWidth="3" strokeDasharray={circumference} strokeDashoffset={dashOffset} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.9s linear" }} />
+            </svg>
+            <span style={{ position: "relative", zIndex: 1, color: "#e53935", fontWeight: 700, fontSize: 15 }}>✕</span>
+          </button>
+        </div>
       </div>
     </Panel>
   );
 }
 
-function NavPanel({ phase, order, eta }: { phase: "to-restaurant" | "to-customer"; order: Order; eta: string }) {
-  const toRest = phase === "to-restaurant";
+function NavPanel({ direction, order, progress }: { direction: "to-restaurant" | "to-customer"; order: Order; progress: number }) {
+  const toRest = direction === "to-restaurant";
   const color = toRest ? "#06C167" : "#276EF1";
-  const label = toRest ? "Head to restaurant" : "Head to customer";
-  const address = toRest ? order.restaurant.address : order.customer.address;
-  const icon = toRest ? order.restaurant.emoji : "🏠";
   return (
     <Panel>
-      <div style={{ padding: "0 20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, animation: "pulse 1.2s ease-in-out infinite" }} />
-          <span style={{ color: "#fff", fontWeight: 800, fontSize: 17 }}>{label}</span>
-          {eta && <span style={{ marginLeft: "auto", color: color, fontWeight: 700, fontSize: 14 }}>{eta}</span>}
+      <div style={{ padding: "0 16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 7, height: 7, borderRadius: "50%", background: color, animation: "pulse 1.2s ease-in-out infinite" }} />
+          <span style={{ color: "#fff", fontWeight: 800, fontSize: 16 }}>{toRest ? "Head to restaurant" : "Head to customer"}</span>
+          <span style={{ marginLeft: "auto", color: color, fontWeight: 700, fontSize: 13 }}>{Math.round(progress)}%</span>
         </div>
-        <div style={{ background: "#242424", borderRadius: 12, overflow: "hidden" }}>
-          <AddressRow icon={icon} label={toRest ? "Pickup" : "Dropoff"} address={address} color={color} />
+        <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 4, height: 4, overflow: "hidden", marginBottom: 12 }}>
+          <div style={{ height: "100%", borderRadius: 4, background: color, width: `${progress}%`, transition: "width 0.3s ease" }} />
         </div>
-        {toRest && (
-          <div style={{ background: "#242424", borderRadius: 12, padding: "11px 14px", marginTop: 10, display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Order for</span>
-            <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{order.customer.name} · {fmt(order.total)}</span>
+        <div style={{ background: "#242424", borderRadius: 10, padding: "10px 12px", display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ fontSize: 18 }}>{toRest ? order.restaurant.emoji : "🏠"}</span>
+          <div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 700, letterSpacing: "0.4px", textTransform: "uppercase" }}>{toRest ? "Pickup" : "Dropoff"}</div>
+            <div style={{ color: "#fff", fontSize: 13, fontWeight: 500 }}>{toRest ? order.restaurant.address : order.customer.address}</div>
           </div>
-        )}
+          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>{fmt(order.total)}</div>
+            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 10 }}>{order.distance}</div>
+          </div>
+        </div>
       </div>
     </Panel>
   );
@@ -596,78 +769,79 @@ function NavPanel({ phase, order, eta }: { phase: "to-restaurant" | "to-customer
 function PickupPanel({ order, onPickedUp }: { order: Order; onPickedUp: () => void }) {
   return (
     <Panel>
-      <div style={{ padding: "0 20px 24px" }}>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ color: "#06C167", fontWeight: 800, fontSize: 20, marginBottom: 3 }}>You've arrived!</div>
-          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Collect the order from {order.restaurant.name}</div>
+      <div style={{ padding: "0 16px 20px" }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ color: "#06C167", fontWeight: 800, fontSize: 18, marginBottom: 2 }}>You've arrived!</div>
+          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Collect order from {order.restaurant.name}</div>
         </div>
-        <div style={{ background: "#242424", borderRadius: 12, padding: "12px 14px", marginBottom: 10 }}>
+        <div style={{ background: "#242424", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
           {order.items.map((item, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: i < order.items.length - 1 ? "1px solid rgba(255,255,255,0.05)" : "none" }}>
-              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 13 }}>{item.name}</span>
-              <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>{fmt(item.price)}</span>
+            <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: i < order.items.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+              <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 12 }}>{item.name}</span>
+              <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}>{fmt(item.price)}</span>
             </div>
           ))}
         </div>
-        <div style={{ background: "#242424", borderRadius: 12, padding: "11px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>📦</span>
-          <div><div style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>Scan QR at counter</div>
-            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Show barcode to staff to collect order</div>
-          </div>
-        </div>
-        <button className="ubtn" onClick={onPickedUp} style={{
-          width: "100%", background: "#06C167", border: "none", borderRadius: 12,
-          color: "#fff", fontWeight: 700, fontSize: 16, padding: "15px",
-        }}>Picked Up — Start Delivery</button>
+        <button className="ubtn" onClick={onPickedUp} style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px" }}>
+          Picked Up — Start Delivery
+        </button>
       </div>
     </Panel>
   );
 }
 
-function DeliveredPanel({ order, tip, onNext }: { order: Order; tip: string; onNext: () => void }) {
-  const tipVal = parseFloat(tip.replace("£", ""));
-  const total = (order.total + tipVal).toFixed(2);
+function DeliveredPanel({ order, tip, rankedUp, onNext }: { order: Order; tip: number; rankedUp: Rank | null; onNext: () => void }) {
+  const total = (order.total + tip).toFixed(2);
   return (
     <Panel>
-      <div style={{ padding: "0 20px 24px" }}>
-        <div style={{ textAlign: "center", paddingBottom: 18, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <div style={{ fontSize: 42, marginBottom: 8 }}>✅</div>
-          <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, marginBottom: 3 }}>Delivery Complete!</div>
-          <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Delivered to {order.customer.name}</div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-around", padding: "18px 0", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <EStat label="Fare" value={fmt(order.total)} />
-          <EStat label="Tip" value={tip} highlight={tipVal > 0} />
-          <EStat label="Total" value={`£${total}`} big />
-        </div>
-        <div style={{ display: "flex", gap: 8, padding: "14px 0 0" }}>
-          <div style={{ flex: 1, background: "#242424", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{order.distance}</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>Distance</div>
+      <div style={{ padding: "0 16px 22px" }}>
+        {rankedUp ? (
+          <div style={{
+            background: rankedUp.gradient, borderRadius: 12, padding: "14px", marginBottom: 14,
+            textAlign: "center", animation: "rankUp 0.5s ease",
+            boxShadow: `0 0 24px ${rankedUp.color}66`,
+          }}>
+            <div style={{ fontSize: 32, marginBottom: 6 }}>{rankedUp.icon}</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Rank Up! You're now {rankedUp.name}</div>
+            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 4 }}>
+              {rankedUp.perks[0]}
+            </div>
           </div>
-          <div style={{ flex: 1, background: "#242424", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{order.duration}</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>Duration</div>
+        ) : (
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <div style={{ fontSize: 36, marginBottom: 6 }}>✅</div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Delivery Complete!</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 3 }}>Delivered to {order.customer.name}</div>
           </div>
-          <div style={{ flex: 1, background: "#242424", borderRadius: 10, padding: "10px", textAlign: "center" }}>
-            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{order.customer.rating} ⭐</div>
-            <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 2 }}>Customer</div>
+        )}
+
+        {/* Earnings breakdown */}
+        <div style={{ background: "#242424", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Delivery fare</span>
+            <span style={{ color: "#fff", fontWeight: 600, fontSize: 13 }}>{fmt(order.total)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Tip</span>
+            <span style={{ color: tip > 0 ? "#06C167" : "rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 13 }}>{fmt(tip)}</span>
+          </div>
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.07)", paddingTop: 8, display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>Total earned</span>
+            <span style={{ color: "#06C167", fontWeight: 800, fontSize: 18 }}>£{total}</span>
           </div>
         </div>
-        <button className="ubtn" onClick={onNext} style={{
-          width: "100%", marginTop: 14, background: "#06C167", border: "none", borderRadius: 12,
-          color: "#fff", fontWeight: 700, fontSize: 16, padding: "15px",
-        }}>Find Next Order</button>
+
+        {/* Trip stats */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <StatCard label="Distance" value={order.distance} />
+          <StatCard label="Duration" value={order.duration} />
+          <StatCard label="Customer" value={`${order.customer.rating}⭐`} />
+        </div>
+
+        <button className="ubtn" onClick={onNext} style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px" }}>
+          Find Next Order
+        </button>
       </div>
     </Panel>
-  );
-}
-
-function EStat({ label, value, highlight, big }: { label: string; value: string; highlight?: boolean; big?: boolean }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ color: highlight ? "#06C167" : big ? "#fff" : "rgba(255,255,255,0.8)", fontWeight: 800, fontSize: big ? 22 : 18 }}>{value}</div>
-      <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11, marginTop: 3 }}>{label}</div>
-    </div>
   );
 }
