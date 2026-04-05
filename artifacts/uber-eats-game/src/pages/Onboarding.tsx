@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 
 export interface DriverProfile {
   name: string;
+  password: string;
+  driverCode: string;
   avatar: string;
   vehicle: string;
   vehicleEmoji: string;
@@ -24,15 +26,23 @@ const CITIES = [
   { name: "Birmingham", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
 ];
 
-type Screen = "splash" | "name" | "avatar" | "vehicle" | "city" | "verify" | "welcome";
+function generateDriverCode(): string {
+  const num = Math.floor(100000 + Math.random() * 900000);
+  return `DRV-${num}`;
+}
+
+type Screen = "splash" | "name" | "password" | "avatar" | "vehicle" | "city" | "verify" | "welcome";
 
 export default function Onboarding({ onComplete }: Props) {
   const [screen, setScreen] = useState<Screen>("splash");
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [avatar, setAvatar] = useState("");
   const [vehicle, setVehicle] = useState<typeof VEHICLES[0] | null>(null);
   const [city, setCity] = useState(CITIES[0]);
   const [verifyStep, setVerifyStep] = useState(0);
+  const [driverCode] = useState(() => generateDriverCode());
   const [fadeKey, setFadeKey] = useState(0);
 
   function go(s: Screen) {
@@ -69,6 +79,8 @@ export default function Onboarding({ onComplete }: Props) {
     "Activating driver account...",
   ];
 
+  const passwordsMatch = password.length >= 6 && password === confirmPassword;
+
   const wrap = (children: React.ReactNode, padded = true) => (
     <div key={fadeKey} style={{
       display: "flex", flexDirection: "column", height: "100vh",
@@ -82,7 +94,7 @@ export default function Onboarding({ onComplete }: Props) {
         @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.35} }
         @keyframes badgePop { 0%{transform:scale(0.6);opacity:0}70%{transform:scale(1.08)}100%{transform:scale(1);opacity:1} }
-        input:focus{outline:none}
+        input:focus{outline:none;border-color:#06C167!important}
         .chip:hover{filter:brightness(1.1)}
         .chip:active{transform:scale(0.97)}
       `}</style>
@@ -98,7 +110,6 @@ export default function Onboarding({ onComplete }: Props) {
         <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 16, fontWeight: 400, marginBottom: 48, textAlign: "center", lineHeight: 1.5 }}>
           Deliver food. Earn money.<br />Be your own boss.
         </div>
-        {/* Stats row */}
         <div style={{ display: "flex", gap: 12, marginBottom: 40 }}>
           {[["£15+", "Avg/hr"], ["4.9★", "Driver rating"], ["1M+", "UK drivers"]].map(([val, lbl]) => (
             <div key={lbl} style={{ background: "#1e1e1e", borderRadius: 12, padding: "14px 16px", textAlign: "center", flex: 1 }}>
@@ -107,7 +118,6 @@ export default function Onboarding({ onComplete }: Props) {
             </div>
           ))}
         </div>
-        {/* Perks */}
         {["Work whenever you want", "Get paid weekly", "Keep 100% of tips"].map(p => (
           <div key={p} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10, alignSelf: "stretch" }}>
             <div style={{ width: 22, height: 22, borderRadius: "50%", background: "#06C16722", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -132,9 +142,9 @@ export default function Onboarding({ onComplete }: Props) {
   if (screen === "name") return wrap(
     <>
       <div style={{ paddingTop: 60, flex: 1 }}>
-        <ProgressBar step={1} total={4} />
+        <ProgressBar step={1} total={5} />
         <div style={{ marginTop: 36 }}>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 1 of 4</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 1 of 5</div>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: 26, marginBottom: 6 }}>What's your name?</div>
           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 32 }}>This will appear on your driver profile and receipts.</div>
 
@@ -144,7 +154,7 @@ export default function Onboarding({ onComplete }: Props) {
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="e.g. James Williams"
-            onKeyDown={e => e.key === "Enter" && name.trim().length >= 2 && go("avatar")}
+            onKeyDown={e => e.key === "Enter" && name.trim().length >= 2 && go("password")}
             style={{
               width: "100%", boxSizing: "border-box",
               background: "#1e1e1e", border: "1.5px solid rgba(255,255,255,0.1)",
@@ -160,9 +170,70 @@ export default function Onboarding({ onComplete }: Props) {
       </div>
       <div style={{ paddingBottom: 40 }}>
         <button
-          onClick={() => go("avatar")}
+          onClick={() => go("password")}
           disabled={name.trim().length < 2}
           style={{ width: "100%", background: name.trim().length >= 2 ? "#06C167" : "#1e1e1e", border: "none", borderRadius: 14, color: name.trim().length >= 2 ? "#fff" : "rgba(255,255,255,0.2)", fontWeight: 800, fontSize: 17, padding: "17px", cursor: name.trim().length >= 2 ? "pointer" : "default" }}
+        >Continue</button>
+      </div>
+    </>
+  );
+
+  // ── Password ─────────────────────────────────────────────────────────────────
+  if (screen === "password") return wrap(
+    <>
+      <div style={{ paddingTop: 60, flex: 1 }}>
+        <ProgressBar step={2} total={5} />
+        <div style={{ marginTop: 36 }}>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 2 of 5</div>
+          <div style={{ color: "#fff", fontWeight: 800, fontSize: 26, marginBottom: 6 }}>Create a password</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 32 }}>Minimum 6 characters. Used for document renewal.</div>
+
+          <label style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Password</label>
+          <input
+            autoFocus
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="At least 6 characters"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: "#1e1e1e", border: "1.5px solid rgba(255,255,255,0.1)",
+              borderRadius: 12, padding: "16px 14px",
+              color: "#fff", fontSize: 16, fontWeight: 600,
+              caretColor: "#06C167", marginBottom: 16,
+            }}
+          />
+
+          <label style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Confirm Password</label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            placeholder="Re-enter your password"
+            onKeyDown={e => e.key === "Enter" && passwordsMatch && go("avatar")}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: "#1e1e1e", border: confirmPassword && !passwordsMatch ? "1.5px solid #e53935" : "1.5px solid rgba(255,255,255,0.1)",
+              borderRadius: 12, padding: "16px 14px",
+              color: "#fff", fontSize: 16, fontWeight: 600,
+              caretColor: "#06C167",
+            }}
+          />
+          {confirmPassword && !passwordsMatch && (
+            <div style={{ color: "#e53935", fontSize: 12, marginTop: 8 }}>
+              {password.length < 6 ? "Password must be at least 6 characters" : "Passwords don't match"}
+            </div>
+          )}
+          {passwordsMatch && (
+            <div style={{ color: "#06C167", fontSize: 12, marginTop: 8 }}>✓ Passwords match</div>
+          )}
+        </div>
+      </div>
+      <div style={{ paddingBottom: 40 }}>
+        <button
+          onClick={() => go("avatar")}
+          disabled={!passwordsMatch}
+          style={{ width: "100%", background: passwordsMatch ? "#06C167" : "#1e1e1e", border: "none", borderRadius: 14, color: passwordsMatch ? "#fff" : "rgba(255,255,255,0.2)", fontWeight: 800, fontSize: 17, padding: "17px", cursor: passwordsMatch ? "pointer" : "default" }}
         >Continue</button>
       </div>
     </>
@@ -172,9 +243,9 @@ export default function Onboarding({ onComplete }: Props) {
   if (screen === "avatar") return wrap(
     <>
       <div style={{ paddingTop: 60, flex: 1 }}>
-        <ProgressBar step={2} total={4} />
+        <ProgressBar step={3} total={5} />
         <div style={{ marginTop: 36 }}>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 2 of 4</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 3 of 5</div>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: 26, marginBottom: 6 }}>Choose your avatar</div>
           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 28 }}>Pick how you appear in the app.</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
@@ -202,9 +273,9 @@ export default function Onboarding({ onComplete }: Props) {
   if (screen === "vehicle") return wrap(
     <>
       <div style={{ paddingTop: 60, flex: 1 }}>
-        <ProgressBar step={3} total={4} />
+        <ProgressBar step={4} total={5} />
         <div style={{ marginTop: 36 }}>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 3 of 4</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 4 of 5</div>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: 26, marginBottom: 6 }}>Your delivery vehicle</div>
           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 28 }}>Choose how you'll make deliveries.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -249,9 +320,9 @@ export default function Onboarding({ onComplete }: Props) {
   if (screen === "city") return wrap(
     <>
       <div style={{ paddingTop: 60, flex: 1 }}>
-        <ProgressBar step={4} total={4} />
+        <ProgressBar step={5} total={5} />
         <div style={{ marginTop: 36 }}>
-          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 4 of 4</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: 600, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>Step 5 of 5</div>
           <div style={{ color: "#fff", fontWeight: 800, fontSize: 26, marginBottom: 6 }}>Select your city</div>
           <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 28 }}>We'll match you with orders in your area.</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -292,7 +363,6 @@ export default function Onboarding({ onComplete }: Props) {
   // ── Verify ──────────────────────────────────────────────────────────────────
   if (screen === "verify") return wrap(
     <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0 }}>
-      {/* Spinner */}
       <div style={{ width: 72, height: 72, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.06)", borderTop: "3px solid #06C167", animation: "spin 0.9s linear infinite", marginBottom: 32 }} />
       <div style={{ color: "#fff", fontWeight: 700, fontSize: 20, marginBottom: 8 }}>Verifying your account</div>
       <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 14, marginBottom: 40 }}>This only takes a moment...</div>
@@ -324,17 +394,15 @@ export default function Onboarding({ onComplete }: Props) {
   // ── Welcome ─────────────────────────────────────────────────────────────────
   if (screen === "welcome") return wrap(
     <>
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflowY: "auto" }}>
         <div style={{ fontSize: 16, color: "#06C167", fontWeight: 700, marginBottom: 24, letterSpacing: "0.5px" }}>APPLICATION APPROVED ✓</div>
 
-        {/* Profile card */}
         <div style={{
           background: "linear-gradient(135deg,#1a1a1a,#222)",
           border: "1px solid rgba(255,255,255,0.08)", borderRadius: 20, padding: "28px 24px",
-          alignSelf: "stretch", marginBottom: 28,
+          alignSelf: "stretch", marginBottom: 20,
           animation: "badgePop 0.5s ease",
         }}>
-          {/* Avatar + name */}
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#06C16722", border: "2px solid #06C167", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34 }}>
               {avatar}
@@ -348,7 +416,6 @@ export default function Onboarding({ onComplete }: Props) {
             </div>
           </div>
 
-          {/* Details */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[
               { label: "Vehicle", value: `${vehicle?.emoji} ${vehicle?.label}` },
@@ -364,7 +431,18 @@ export default function Onboarding({ onComplete }: Props) {
           </div>
         </div>
 
-        {/* Rank badge */}
+        {/* Driver Code Card */}
+        <div style={{
+          background: "linear-gradient(135deg,#0a2a1a,#0f3d24)",
+          border: "2px solid #06C167", borderRadius: 16, padding: "16px 20px",
+          alignSelf: "stretch", marginBottom: 16,
+          animation: "badgePop 0.6s ease",
+        }}>
+          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: "0.6px", textTransform: "uppercase", marginBottom: 8 }}>🔑 Your Driver Code — Save This!</div>
+          <div style={{ color: "#06C167", fontWeight: 900, fontSize: 28, letterSpacing: "0.1em", fontFamily: "monospace", marginBottom: 6 }}>{driverCode}</div>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>You'll need this code every time you log in. Keep it safe.</div>
+        </div>
+
         <div style={{ background: "linear-gradient(135deg,#0277BD,#4FC3F7)", borderRadius: 14, padding: "14px 20px", alignSelf: "stretch", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 28 }}>🔵</span>
           <div>
@@ -376,7 +454,7 @@ export default function Onboarding({ onComplete }: Props) {
 
       <div style={{ paddingBottom: 40 }}>
         <button
-          onClick={() => onComplete({ name: name.trim(), avatar, vehicle: vehicle!.label, vehicleEmoji: vehicle!.emoji, city: city.name })}
+          onClick={() => onComplete({ name: name.trim(), password, driverCode, avatar, vehicle: vehicle!.label, vehicleEmoji: vehicle!.emoji, city: city.name })}
           style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 14, color: "#fff", fontWeight: 800, fontSize: 18, padding: "18px", cursor: "pointer" }}
         >
           Start Driving 🚗

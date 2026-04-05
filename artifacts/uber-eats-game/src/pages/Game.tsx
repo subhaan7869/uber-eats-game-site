@@ -99,19 +99,11 @@ function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; orde
 
   return (
     <div style={{ position: "relative", flex: 1, background: "#111", overflow: "hidden", minHeight: 0 }}>
-      {/* Sky */}
       <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom,#0a0a1a 0%,#111827 40%,#1a1a1a 100%)" }} />
-
-      {/* City silhouette */}
       <Skyline />
-
-      {/* Road surface */}
       <div style={{ position: "absolute", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "44%", top: "28%", background: "#1c1c1c", boxShadow: "0 0 40px rgba(0,0,0,0.8)" }}>
-        {/* Road edges */}
         <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#FFD700", opacity: 0.6 }} />
         <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 4, background: "#FFD700", opacity: 0.6 }} />
-
-        {/* Center dashes — animate when moving */}
         <div style={{
           position: "absolute", left: "50%", top: 0, bottom: 0, width: 4,
           transform: "translateX(-50%)",
@@ -120,8 +112,6 @@ function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; orde
           animation: moving ? "roadScroll 1.4s linear infinite" : "none",
           opacity: 0.35,
         }} />
-
-        {/* Progress fill */}
         {(moving || atRest) && (
           <div style={{
             position: "absolute", bottom: 0, left: 0, right: 0,
@@ -131,8 +121,6 @@ function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; orde
           }} />
         )}
       </div>
-
-      {/* Side lane markings */}
       {["-28%", "72%"].map((left, i) => (
         <div key={i} style={{
           position: "absolute", top: "28%", bottom: 0, left, width: "6%",
@@ -148,40 +136,28 @@ function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; orde
           }} />
         </div>
       ))}
-
-      {/* Destination building at top */}
       {order && (phase === "to-restaurant" || phase === "at-restaurant" || phase === "to-customer") && (
         <div style={{
           position: "absolute", top: "6%", left: "50%", transform: "translateX(-50%)",
           display: "flex", flexDirection: "column", alignItems: "center", gap: 6,
-          animation: "fadeIn 0.5s ease",
-          zIndex: 10,
+          animation: "fadeIn 0.5s ease", zIndex: 10,
         }}>
           <div style={{
             width: 56, height: 56, borderRadius: 14,
-            background: destColor + "22",
-            border: `2px solid ${destColor}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 26,
+            background: destColor + "22", border: `2px solid ${destColor}`,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26,
             boxShadow: `0 0 20px ${destColor}66`,
             animation: atRest ? "glow 1.5s ease-in-out infinite alternate" : "none",
           }}>{destEmoji}</div>
           <div style={{
             background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)",
-            border: `1px solid ${destColor}44`,
-            borderRadius: 8, padding: "4px 12px",
+            border: `1px solid ${destColor}44`, borderRadius: 8, padding: "4px 12px",
             color: "#fff", fontSize: 12, fontWeight: 600,
           }}>{destLabel}</div>
         </div>
       )}
-
-      {/* Progress bar along road */}
       {(moving) && (
-        <div style={{
-          position: "absolute", top: "50%", left: "50%",
-          transform: "translate(-50%,-50%)",
-          width: "38%",
-        }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: "38%" }}>
           <div style={{ background: "rgba(255,255,255,0.08)", borderRadius: 4, height: 4, overflow: "hidden" }}>
             <div style={{ height: "100%", borderRadius: 4, background: destColor, width: `${progress}%`, transition: "width 0.3s ease" }} />
           </div>
@@ -192,34 +168,23 @@ function RoadView({ phase, order, progress, vehicleEmoji }: { phase: Phase; orde
           </div>
         </div>
       )}
-
-      {/* Car */}
       <div style={{
         position: "absolute",
         bottom: atRest ? "68%" : (moving ? `${20 + progress * 0.52}%` : "22%"),
         left: "50%", transform: "translateX(-50%)",
-        transition: "bottom 0.3s ease",
-        zIndex: 20,
+        transition: "bottom 0.3s ease", zIndex: 20,
         filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.8))",
         animation: moving ? "carBounce 0.3s ease-in-out infinite alternate" : "none",
-        fontSize: 36,
-        lineHeight: 1,
+        fontSize: 36, lineHeight: 1,
       }}>{vehicleEmoji}</div>
-
-      {/* Headlight beams */}
       {moving && (
         <div style={{
-          position: "absolute",
-          bottom: `${20 + progress * 0.52 + 5}%`,
-          left: "50%", transform: "translateX(-50%)",
+          position: "absolute", bottom: `${20 + progress * 0.52 + 5}%`, left: "50%", transform: "translateX(-50%)",
           width: 60, height: 80,
           background: "linear-gradient(to top, rgba(255,240,150,0.15), transparent)",
-          clipPath: "polygon(20% 100%, 80% 100%, 100% 0%, 0% 0%)",
-          zIndex: 15,
+          clipPath: "polygon(20% 100%, 80% 100%, 100% 0%, 0% 0%)", zIndex: 15,
         }} />
       )}
-
-      {/* Status overlays */}
       {phase === "waiting" && <IdleRoadOverlay vehicleEmoji={vehicleEmoji} />}
       {phase === "offline" && <OfflineRoadOverlay />}
       {phase === "at-restaurant" && <AtRestaurantOverlay order={order!} />}
@@ -258,7 +223,6 @@ function Skyline() {
           ))}
         </div>
       ))}
-      {/* Street lights */}
       {["33%", "67%"].map((l, i) => (
         <div key={i} style={{ position: "absolute", bottom: 0, left: l, width: 3, height: 50, background: "#333" }}>
           <div style={{ position: "absolute", top: -6, left: -6, width: 14, height: 6, background: "#444", borderRadius: "3px 3px 0 0" }} />
@@ -332,9 +296,102 @@ function CancelledOverlay() {
   );
 }
 
+// ─── Verification Modal ───────────────────────────────────────────────────────
+
+function VerificationModal({ driverCode, onSuccess, onFail }: { driverCode: string; onSuccess: () => void; onFail: () => void; }) {
+  const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [attempts, setAttempts] = useState(0);
+
+  function handleVerify() {
+    if (input.trim().toUpperCase() === driverCode) {
+      onSuccess();
+    } else {
+      const next = attempts + 1;
+      setAttempts(next);
+      setError(`Incorrect code. ${3 - next > 0 ? `${3 - next} attempt${3 - next !== 1 ? "s" : ""} remaining.` : "Access blocked."}`);
+      setInput("");
+      if (next >= 3) setTimeout(onFail, 1200);
+    }
+  }
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
+      zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "0 24px", animation: "fadeIn 0.3s ease",
+    }}>
+      <div style={{ background: "#1a1a1a", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ fontSize: 40, textAlign: "center", marginBottom: 14 }}>🔒</div>
+        <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, textAlign: "center", marginBottom: 6 }}>Identity Check</div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", marginBottom: 24 }}>
+          Every 3 deliveries we verify your identity. Please enter your driver code.
+        </div>
+
+        <label style={{ color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase", display: "block", marginBottom: 8 }}>Driver Code</label>
+        <input
+          autoFocus
+          value={input}
+          onChange={e => { setInput(e.target.value.toUpperCase()); setError(""); }}
+          placeholder="DRV-000000"
+          onKeyDown={e => e.key === "Enter" && input.trim() && handleVerify()}
+          style={{
+            width: "100%", boxSizing: "border-box",
+            background: "#2a2a2a", border: error ? "1.5px solid #e53935" : "1.5px solid rgba(255,255,255,0.1)",
+            borderRadius: 12, padding: "14px", color: "#fff", fontSize: 18, fontWeight: 700,
+            caretColor: "#06C167", fontFamily: "monospace", letterSpacing: "0.08em",
+          }}
+        />
+        {error && <div style={{ color: "#e53935", fontSize: 12, marginTop: 8 }}>{error}</div>}
+
+        <button
+          onClick={handleVerify}
+          disabled={!input.trim() || attempts >= 3}
+          style={{
+            width: "100%", marginTop: 16, background: "#06C167", border: "none", borderRadius: 12,
+            color: "#fff", fontWeight: 800, fontSize: 16, padding: "14px",
+            cursor: input.trim() && attempts < 3 ? "pointer" : "default",
+            opacity: input.trim() && attempts < 3 ? 1 : 0.5,
+          }}
+        >Verify</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Cash Out Modal ───────────────────────────────────────────────────────────
+
+function CashOutModal({ earnings, onCashOut, onCancel }: { earnings: number; onCashOut: () => void; onCancel: () => void; }) {
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
+      zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center",
+      padding: "0 24px", animation: "fadeIn 0.3s ease",
+    }}>
+      <div style={{ background: "#1a1a1a", borderRadius: 20, padding: "28px 24px", width: "100%", maxWidth: 360, border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ fontSize: 40, textAlign: "center", marginBottom: 14 }}>💰</div>
+        <div style={{ color: "#fff", fontWeight: 800, fontSize: 20, textAlign: "center", marginBottom: 6 }}>Cash Out</div>
+        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center", marginBottom: 20 }}>
+          Transfer your earnings to your bank account?
+        </div>
+        <div style={{ background: "#242424", borderRadius: 14, padding: "16px", textAlign: "center", marginBottom: 20 }}>
+          <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginBottom: 4 }}>Available Balance</div>
+          <div style={{ color: "#06C167", fontWeight: 900, fontSize: 36 }}>£{earnings.toFixed(2)}</div>
+        </div>
+        <button onClick={onCashOut} style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 12, color: "#fff", fontWeight: 800, fontSize: 16, padding: "14px", cursor: "pointer", marginBottom: 10 }}>
+          Cash Out Now ✓
+        </button>
+        <button onClick={onCancel} style={{ width: "100%", background: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, color: "rgba(255,255,255,0.5)", fontWeight: 600, fontSize: 14, padding: "12px", cursor: "pointer" }}>
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function Game({ profile }: { profile: DriverProfile }) {
+export default function Game({ profile, stateKey }: { profile: DriverProfile; stateKey: string }) {
   const phaseRef = useRef<Phase>("offline");
   const moveInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownInterval = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -343,15 +400,39 @@ export default function Game({ profile }: { profile: DriverProfile }) {
   const progressRef = useRef(0);
   const totalStepsRef = useRef(100);
 
+  // Load saved state from localStorage
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(stateKey);
+      if (raw) return JSON.parse(raw);
+    } catch { }
+    return { totalEarnings: 0, tripCount: 0, loginCount: 0 };
+  }
+
+  const saved = loadState();
+
   const [phase, setPhase] = useState<Phase>("offline");
   const [order, setOrder] = useState<Order | null>(null);
   const [countdown, setCountdown] = useState(5);
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [tripCount, setTripCount] = useState(0);
+  const [totalEarnings, setTotalEarnings] = useState<number>(saved.totalEarnings ?? 0);
+  const [tripCount, setTripCount] = useState<number>(saved.tripCount ?? 0);
   const [sessionTime, setSessionTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [rankedUp, setRankedUp] = useState<Rank | null>(null);
   const [currentTip, setCurrentTip] = useState(0);
+  const [showVerification, setShowVerification] = useState(false);
+  const [pendingNextOrder, setPendingNextOrder] = useState(false);
+  const [showCashOut, setShowCashOut] = useState(false);
+  const [cashedOutMsg, setCashedOutMsg] = useState("");
+
+  // Save state whenever earnings or trips change
+  useEffect(() => {
+    const raw = localStorage.getItem(stateKey);
+    const state = raw ? JSON.parse(raw) : {};
+    state.totalEarnings = totalEarnings;
+    state.tripCount = tripCount;
+    localStorage.setItem(stateKey, JSON.stringify(state));
+  }, [totalEarnings, tripCount]);
 
   useEffect(() => {
     if (phase === "offline") {
@@ -381,12 +462,9 @@ export default function Game({ profile }: { profile: DriverProfile }) {
     phaseRef.current = "incoming";
     setPhase("incoming");
     setCountdown(5);
-
-    // Play new order ping immediately, then repeat every 1.2s during countdown
     playNewOrder();
     if (pingInterval.current) clearInterval(pingInterval.current);
     pingInterval.current = setInterval(() => playNewOrder(), 1200);
-
     if (countdownInterval.current) clearInterval(countdownInterval.current);
     countdownInterval.current = setInterval(() => {
       setCountdown(prev => {
@@ -472,10 +550,32 @@ export default function Game({ profile }: { profile: DriverProfile }) {
 
   const handleNextOrder = useCallback(() => {
     setRankedUp(null);
+    const newCount = tripCount;
+    // Every 3 deliveries, show verification
+    if (newCount > 0 && newCount % 3 === 0) {
+      setPendingNextOrder(true);
+      setShowVerification(true);
+      return;
+    }
+    phaseRef.current = "waiting"; setPhase("waiting");
+    setProgress(0);
+    setTimeout(spawnOrder, rand(1200, 2800));
+  }, [spawnOrder, tripCount]);
+
+  const handleVerificationSuccess = useCallback(() => {
+    setShowVerification(false);
+    setPendingNextOrder(false);
     phaseRef.current = "waiting"; setPhase("waiting");
     setProgress(0);
     setTimeout(spawnOrder, rand(1200, 2800));
   }, [spawnOrder]);
+
+  const handleVerificationFail = useCallback(() => {
+    setShowVerification(false);
+    setPendingNextOrder(false);
+    phaseRef.current = "offline"; setPhase("offline");
+    if (sessionTimerRef.current) { clearInterval(sessionTimerRef.current); sessionTimerRef.current = null; }
+  }, []);
 
   const goOnline = useCallback(() => {
     playTap();
@@ -489,6 +589,14 @@ export default function Game({ profile }: { profile: DriverProfile }) {
     if (sessionTimerRef.current) { clearInterval(sessionTimerRef.current); sessionTimerRef.current = null; }
   }, []);
 
+  const handleCashOut = useCallback(() => {
+    const amount = totalEarnings;
+    setTotalEarnings(0);
+    setShowCashOut(false);
+    setCashedOutMsg(`£${amount.toFixed(2)} transferred to your bank!`);
+    setTimeout(() => setCashedOutMsg(""), 4000);
+  }, [totalEarnings]);
+
   const rank = getRank(tripCount);
   const nextRank = getNextRank(tripCount);
   const pct = rankPct(tripCount);
@@ -497,13 +605,41 @@ export default function Game({ profile }: { profile: DriverProfile }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "'Inter',-apple-system,sans-serif", background: "#111", overflow: "hidden" }}>
 
+      {/* ── Verification Modal ── */}
+      {showVerification && (
+        <VerificationModal
+          driverCode={profile.driverCode}
+          onSuccess={handleVerificationSuccess}
+          onFail={handleVerificationFail}
+        />
+      )}
+
+      {/* ── Cash Out Modal ── */}
+      {showCashOut && (
+        <CashOutModal
+          earnings={totalEarnings}
+          onCashOut={handleCashOut}
+          onCancel={() => setShowCashOut(false)}
+        />
+      )}
+
+      {/* ── Cash Out Toast ── */}
+      {cashedOutMsg && (
+        <div style={{
+          position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)",
+          background: "#06C167", borderRadius: 12, padding: "12px 20px",
+          color: "#fff", fontWeight: 700, fontSize: 14, zIndex: 200,
+          boxShadow: "0 4px 20px rgba(6,193,103,0.4)",
+          animation: "fadeIn 0.3s ease",
+        }}>{cashedOutMsg}</div>
+      )}
+
       {/* ── Top HUD (online only) ── */}
       {phase !== "offline" && (
         <div style={{
           flexShrink: 0, background: "rgba(0,0,0,0.9)", borderBottom: "1px solid rgba(255,255,255,0.06)",
           padding: "10px 16px", display: "flex", gap: 10, alignItems: "center",
         }}>
-          {/* Driver badge */}
           <div style={{ background: "#1a1a1a", borderRadius: 7, padding: "5px 9px", display: "flex", alignItems: "center", gap: 6, border: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
             <span style={{ fontSize: 14 }}>{profile.avatar}</span>
             <div>
@@ -512,17 +648,11 @@ export default function Game({ profile }: { profile: DriverProfile }) {
             </div>
           </div>
 
-          {/* Rank badge */}
-          <div style={{
-            background: rank.gradient, borderRadius: 7, padding: "5px 10px",
-            display: "flex", alignItems: "center", gap: 5,
-            boxShadow: `0 0 12px ${rank.color}44`,
-          }}>
+          <div style={{ background: rank.gradient, borderRadius: 7, padding: "5px 10px", display: "flex", alignItems: "center", gap: 5, boxShadow: `0 0 12px ${rank.color}44` }}>
             <span style={{ fontSize: 13 }}>{rank.icon}</span>
             <span style={{ color: "#fff", fontWeight: 800, fontSize: 11 }}>{rank.name}</span>
           </div>
 
-          {/* Stats */}
           <div style={{ flex: 1, display: "flex", gap: 0, background: "rgba(255,255,255,0.04)", borderRadius: 8, overflow: "hidden", border: "1px solid rgba(255,255,255,0.07)" }}>
             <HudStat label="Earnings" value={fmt(totalEarnings)} highlight />
             <div style={{ width: 1, background: "rgba(255,255,255,0.07)" }} />
@@ -543,7 +673,20 @@ export default function Game({ profile }: { profile: DriverProfile }) {
 
       {/* ── Bottom Panel ── */}
       <div style={{ flexShrink: 0 }}>
-        {phase === "offline" && <OfflinePanel earnings={fmt(totalEarnings)} trips={tripCount} rank={rank} nextRank={nextRank} pct={pct} onGoOnline={goOnline} />}
+        {phase === "offline" && (
+          <OfflinePanel
+            earnings={fmt(totalEarnings)}
+            rawEarnings={totalEarnings}
+            trips={tripCount}
+            rank={rank}
+            nextRank={nextRank}
+            pct={pct}
+            onGoOnline={goOnline}
+            onCashOut={() => setShowCashOut(true)}
+            driverCode={profile.driverCode}
+            name={profile.name}
+          />
+        )}
         {phase === "waiting" && <WaitingPanel onGoOffline={goOffline} />}
         {(phase === "incoming" || phase === "cancelled") && order && (
           <IncomingPanel order={order} countdown={countdown} circumference={circumference} cancelled={phase === "cancelled"} onAccept={handleAccept} onDecline={handleDecline} />
@@ -591,12 +734,38 @@ function Panel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function OfflinePanel({ earnings, trips, rank, nextRank, pct, onGoOnline }: {
-  earnings: string; trips: number; rank: Rank; nextRank: Rank | null; pct: number; onGoOnline: () => void;
+function OfflinePanel({ earnings, rawEarnings, trips, rank, nextRank, pct, onGoOnline, onCashOut, driverCode, name }: {
+  earnings: string; rawEarnings: number; trips: number; rank: Rank; nextRank: Rank | null; pct: number;
+  onGoOnline: () => void; onCashOut: () => void; driverCode: string; name: string;
 }) {
   return (
     <Panel>
       <div style={{ padding: "0 16px 24px" }}>
+
+        {/* Driver info + code */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>{name}</div>
+            <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 11, fontFamily: "monospace", marginTop: 2 }}>{driverCode}</div>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* Cash Out Button */}
+            <button
+              className="ubtn"
+              onClick={onCashOut}
+              disabled={rawEarnings <= 0}
+              style={{
+                background: rawEarnings > 0 ? "#06C16722" : "#1e1e1e",
+                border: `1px solid ${rawEarnings > 0 ? "#06C167" : "rgba(255,255,255,0.08)"}`,
+                borderRadius: 8, padding: "6px 12px",
+                color: rawEarnings > 0 ? "#06C167" : "rgba(255,255,255,0.2)",
+                fontWeight: 700, fontSize: 12,
+                cursor: rawEarnings > 0 ? "pointer" : "default",
+              }}
+            >💰 Cash Out</button>
+          </div>
+        </div>
+
         {/* Rank card */}
         <div style={{ background: "linear-gradient(135deg,#1e1e1e,#252525)", border: `1px solid ${rank.color}33`, borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -613,7 +782,6 @@ function OfflinePanel({ earnings, trips, rank, nextRank, pct, onGoOnline }: {
             </div>
           </div>
 
-          {/* Perks */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
             {rank.perks.map((p, i) => (
               <div key={i} style={{ display: "flex", gap: 7, alignItems: "center" }}>
@@ -623,7 +791,6 @@ function OfflinePanel({ earnings, trips, rank, nextRank, pct, onGoOnline }: {
             ))}
           </div>
 
-          {/* Progress to next */}
           {nextRank ? (
             <>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -644,7 +811,6 @@ function OfflinePanel({ earnings, trips, rank, nextRank, pct, onGoOnline }: {
           )}
         </div>
 
-        {/* Stats row */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <StatCard label="Acceptance" value="94%" />
           <StatCard label="Completion" value="100%" />
@@ -705,7 +871,6 @@ function IncomingPanel({ order, countdown, circumference, cancelled, onAccept, o
   return (
     <Panel>
       <div style={{ padding: "0 16px 20px" }}>
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 12 }}>
           <div>
             <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, fontWeight: 700, letterSpacing: "0.5px", textTransform: "uppercase" }}>New Delivery Request</div>
@@ -718,7 +883,6 @@ function IncomingPanel({ order, countdown, circumference, cancelled, onAccept, o
           </div>
         </div>
 
-        {/* Restaurant row */}
         <div style={{ background: "#242424", borderRadius: 11, padding: "10px 12px", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <div style={{ width: 36, height: 36, borderRadius: 8, background: order.restaurant.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>{order.restaurant.emoji}</div>
@@ -741,7 +905,6 @@ function IncomingPanel({ order, countdown, circumference, cancelled, onAccept, o
           </div>
         </div>
 
-        {/* Addresses */}
         <div style={{ background: "#242424", borderRadius: 11, overflow: "hidden", marginBottom: 12 }}>
           <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "9px 12px" }}>
             <span style={{ fontSize: 14 }}>{order.restaurant.emoji}</span>
@@ -760,7 +923,6 @@ function IncomingPanel({ order, countdown, circumference, cancelled, onAccept, o
           </div>
         </div>
 
-        {/* Buttons */}
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <button className="ubtn" onClick={onAccept} style={{ flex: 1, background: "#06C167", border: "none", borderRadius: 11, color: "#fff", fontWeight: 700, fontSize: 15, padding: "14px" }}>Accept</button>
           <button className="ubtn" onClick={onDecline} style={{ width: 52, height: 52, background: "#2a2a2a", border: "none", borderRadius: 11, position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -843,9 +1005,7 @@ function DeliveredPanel({ order, tip, rankedUp, onNext }: { order: Order; tip: n
           }}>
             <div style={{ fontSize: 32, marginBottom: 6 }}>{rankedUp.icon}</div>
             <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Rank Up! You're now {rankedUp.name}</div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 4 }}>
-              {rankedUp.perks[0]}
-            </div>
+            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 4 }}>{rankedUp.perks[0]}</div>
           </div>
         ) : (
           <div style={{ textAlign: "center", marginBottom: 14 }}>
@@ -855,7 +1015,6 @@ function DeliveredPanel({ order, tip, rankedUp, onNext }: { order: Order; tip: n
           </div>
         )}
 
-        {/* Earnings breakdown */}
         <div style={{ background: "#242424", borderRadius: 12, padding: "12px 14px", marginBottom: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
             <span style={{ color: "rgba(255,255,255,0.45)", fontSize: 13 }}>Delivery fare</span>
@@ -871,7 +1030,6 @@ function DeliveredPanel({ order, tip, rankedUp, onNext }: { order: Order; tip: n
           </div>
         </div>
 
-        {/* Trip stats */}
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <StatCard label="Distance" value={order.distance} />
           <StatCard label="Duration" value={order.duration} />
