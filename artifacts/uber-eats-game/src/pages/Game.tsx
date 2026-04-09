@@ -1109,60 +1109,78 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
           {/* ── ORDER DETAIL (matches reference image exactly) ── */}
           {selectedOrderCard && (
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 30, animation: "slideUp 0.22s ease" }}>
-              <div style={{ background: "white", borderRadius: "20px 20px 0 0", boxShadow: "0 -4px 30px rgba(0,0,0,0.18)" }}>
-                <div style={{ width: 36, height: 4, background: "#e0e0e0", borderRadius: 2, margin: "12px auto 0" }} />
+              {/* Countdown ring floats top-right above the card */}
+              <div style={{ position: "absolute", top: -64, right: 16, zIndex: 31 }}>
+                <CountdownRing seconds={orderTimer} total={ORDER_TIMEOUT} />
+              </div>
 
-                {/* Delivery badge + price — matches reference */}
-                <div style={{ padding: "16px 22px 0" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {/* Green pill badge like reference */}
-                      <div style={{ background: "#06C167", borderRadius: 100, padding: "6px 14px", display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ fontSize: 14 }}>🍴</span>
-                        <span style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>Delivery</span>
-                      </div>
+              <div style={{ background: "white", borderRadius: "24px 24px 0 0", boxShadow: "0 -6px 32px rgba(0,0,0,0.18)" }}>
+                {/* Drag handle */}
+                <div style={{ width: 36, height: 4, background: "#e0e0e0", borderRadius: 2, margin: "14px auto 0" }} />
+
+                <div style={{ padding: "16px 20px 0" }}>
+
+                  {/* ── Centered "Delivery" badge ── */}
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+                    <div style={{
+                      background: "#06C167", borderRadius: 100,
+                      padding: "8px 18px",
+                      display: "inline-flex", alignItems: "center", gap: 7,
+                    }}>
+                      {/* Utensils SVG icon */}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M3 2v7c0 1.1.9 2 2 2h2v11h2V11h2c1.1 0 2-.9 2-2V2h-2v5H7V2H5v5H3V2zM19 2c-1.7 0-4 1.3-4 6v1.5c0 1 .8 1.8 1.8 1.8H18V22h2V2z" fill="white"/>
+                      </svg>
+                      <span style={{ color: "#fff", fontWeight: 700, fontSize: 14, letterSpacing: "0.1px" }}>Delivery</span>
                     </div>
-                    <CountdownRing seconds={orderTimer} total={ORDER_TIMEOUT} />
                   </div>
 
-                  {/* Big price like reference */}
-                  <div style={{ fontWeight: 900, fontSize: 40, color: "#1a1a1a", letterSpacing: "-1.5px", lineHeight: 1, marginBottom: 4 }}>
+                  {/* ── Big price ── */}
+                  <div style={{ fontWeight: 900, fontSize: 42, color: "#1a1a1a", letterSpacing: "-2px", lineHeight: 1, marginBottom: 5 }}>
                     {fmt(selectedOrderCard.total)}
                   </div>
-                  <div style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+                  <div style={{ color: "#888", fontSize: 13, marginBottom: 18, fontWeight: 400 }}>
                     includes expected tip
                   </div>
 
-                  {/* Separator */}
-                  <div style={{ height: 1, background: "#f0f0f0", marginBottom: 16 }} />
+                  {/* ── Separator ── */}
+                  <div style={{ height: 1, background: "#ebebeb", marginBottom: 16 }} />
 
-                  {/* Time + distance */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                    <span style={{ color: "#666", fontSize: 14 }}>🕐</span>
-                    <span style={{ color: "#1a1a1a", fontWeight: 600, fontSize: 14 }}>{selectedOrderCard.duration} ({selectedOrderCard.distance}) total</span>
+                  {/* ── Time + distance ── */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 16 }}>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                      <circle cx="12" cy="12" r="10" stroke="#555" strokeWidth="2"/>
+                      <path d="M12 6v6l4 2" stroke="#555" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    <span style={{ color: "#1a1a1a", fontWeight: 500, fontSize: 14 }}>
+                      {selectedOrderCard.duration} ({selectedOrderCard.distance}) total
+                    </span>
                   </div>
 
-                  {/* Pickup */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
-                    <span style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>🍴</span>
-                    <div>
-                      <div style={{ color: "#1a1a1a", fontWeight: 600, fontSize: 14 }}>
-                        {selectedOrderCard.restaurant.name} · {selectedOrderCard.restaurant.fullAddress}
-                      </div>
-                    </div>
+                  {/* ── Pickup address ── */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 13 }}>
+                    {/* Fork icon — SVG */}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+                      <path d="M3 2v7c0 1.1.9 2 2 2h2v11h2V11h2c1.1 0 2-.9 2-2V2h-2v5H7V2H5v5H3V2zM19 2c-1.7 0-4 1.3-4 6v1.5c0 1 .8 1.8 1.8 1.8H18V22h2V2z" fill="#555"/>
+                    </svg>
+                    <span style={{ color: "#1a1a1a", fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                      {selectedOrderCard.restaurant.name} {selectedOrderCard.restaurant.fullAddress}
+                    </span>
                   </div>
 
-                  {/* Dropoff */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 20 }}>
-                    <span style={{ fontSize: 16, marginTop: 1, flexShrink: 0 }}>📍</span>
-                    <div>
-                      <div style={{ color: "#1a1a1a", fontWeight: 600, fontSize: 14 }}>
-                        {selectedOrderCard.customer.fullAddress}
-                      </div>
-                    </div>
+                  {/* ── Dropoff address ── */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 22 }}>
+                    {/* Pin dot — SVG */}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+                      <circle cx="12" cy="10" r="4" fill="#555"/>
+                      <path d="M12 2C7.6 2 4 5.6 4 10c0 5.3 8 14 8 14s8-8.7 8-14c0-4.4-3.6-8-8-8z" stroke="#555" strokeWidth="1.5" fill="none"/>
+                    </svg>
+                    <span style={{ color: "#1a1a1a", fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>
+                      {selectedOrderCard.customer.fullAddress}
+                    </span>
                   </div>
 
-                  {/* Actions */}
+                  {/* ── Actions ── */}
                   <div style={{ display: "flex", gap: 12, paddingBottom: 36 }}>
                     <button onClick={() => {
                       setSelectedOrderCard(null);
