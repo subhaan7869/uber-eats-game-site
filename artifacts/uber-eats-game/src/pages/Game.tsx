@@ -7,12 +7,18 @@ import type { DriverProfile } from "./Onboarding";
 type Phase = "offline" | "online" | "selecting" | "to-restaurant" | "at-restaurant" | "to-customer" | "delivered";
 
 interface MenuItem { name: string; price: number; }
-interface Restaurant { name: string; emoji: string; color: string; address: string; fullAddress: string; menu: MenuItem[]; }
-interface Customer { name: string; rating: number; address: string; fullAddress: string; orders: number; }
+interface Restaurant { name: string; emoji: string; color: string; address: string; fullAddress: string; menu: MenuItem[]; prepMin: number; prepMax: number; mapX: number; mapY: number; }
+interface Customer { name: string; rating: number; address: string; fullAddress: string; orders: number; mapX: number; mapY: number; }
 interface Order {
   id: string; restaurant: Restaurant; customer: Customer; items: MenuItem[];
   total: number; distance: string; duration: string; tip: number;
   mapX: number; mapY: number;
+  distToRestaurant: number;   // miles, driver → restaurant
+  distToCustomer: number;     // miles, restaurant → customer
+  prepTime: number;           // minutes restaurant needs to prepare
+  surgeMultiplier: number;
+  matchReason: string;        // "Near you" | "High fare" | "Surge zone" | "Priority match"
+  isHighValue: boolean;
 }
 interface BusyZone { id: string; x: number; y: number; r: number; label: string; multiplier: number; }
 
