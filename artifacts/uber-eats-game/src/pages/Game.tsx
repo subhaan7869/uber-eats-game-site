@@ -789,44 +789,55 @@ function StatCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DeliveredPanel({ order, tip, rankedUp, onNext }: { order: Order; tip: number; rankedUp: Rank | null; onNext: () => void }) {
+function DeliveryCompleteScreen({ order, tip, rankedUp, onNext }: { order: Order; tip: number; rankedUp: Rank | null; onNext: () => void }) {
   const total = (order.total + tip).toFixed(2);
   return (
-    <div style={{ background: "#fff", borderRadius: "20px 20px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.15)", animation: "slideUp 0.22s ease" }}>
-      <div style={{ width: 36, height: 4, background: "#e0e0e0", borderRadius: 2, margin: "12px auto 16px" }} />
-      <div style={{ padding: "0 20px 28px" }}>
-        {rankedUp ? (
-          <div style={{ background: rankedUp.gradient, borderRadius: 14, padding: "16px", marginBottom: 16, textAlign: "center", animation: "rankUp 0.5s ease", boxShadow: `0 0 28px ${rankedUp.color}55` }}>
-            <div style={{ fontSize: 36, marginBottom: 6 }}>{rankedUp.icon}</div>
-            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Rank Up! You're now {rankedUp.name}</div>
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", background: "#fff", fontFamily: "'Inter',-apple-system,sans-serif", animation: "slideUp 0.25s ease" }}>
+      {/* Scrollable content */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "0 20px" }}>
+        <div style={{ paddingTop: 52, paddingBottom: 20 }}>
+          {rankedUp ? (
+            <div style={{ background: rankedUp.gradient, borderRadius: 18, padding: "22px", marginBottom: 20, textAlign: "center", animation: "rankUp 0.5s ease", boxShadow: `0 0 32px ${rankedUp.color}55` }}>
+              <div style={{ fontSize: 44, marginBottom: 8 }}>{rankedUp.icon}</div>
+              <div style={{ color: "#fff", fontWeight: 900, fontSize: 20 }}>Rank Up!</div>
+              <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, marginTop: 4 }}>You're now {rankedUp.name}</div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", marginBottom: 24 }}>
+              <div style={{ fontSize: 56, marginBottom: 10 }}>✅</div>
+              <div style={{ color: "#1a1a1a", fontWeight: 900, fontSize: 24, letterSpacing: "-0.5px" }}>Delivery Complete!</div>
+              <div style={{ color: "#aaa", fontSize: 14, marginTop: 6 }}>Delivered to {order.customer.name}</div>
+            </div>
+          )}
+
+          {/* Earnings */}
+          <div style={{ background: "#f8f8f8", borderRadius: 16, padding: "16px", marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+              <span style={{ color: "#666", fontSize: 14 }}>Delivery fare</span>
+              <span style={{ color: "#1a1a1a", fontWeight: 600, fontSize: 14 }}>{fmt(order.total)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: 12, borderBottom: "1px solid #ebebeb", marginBottom: 12 }}>
+              <span style={{ color: "#666", fontSize: 14 }}>Tip</span>
+              <span style={{ color: tip > 0 ? "#06C167" : "#bbb", fontWeight: 600, fontSize: 14 }}>{fmt(tip)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "#1a1a1a", fontWeight: 700, fontSize: 15 }}>Total earned</span>
+              <span style={{ color: "#06C167", fontWeight: 900, fontSize: 26 }}>£{total}</span>
+            </div>
           </div>
-        ) : (
-          <div style={{ textAlign: "center", marginBottom: 16 }}>
-            <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
-            <div style={{ color: "#1a1a1a", fontWeight: 800, fontSize: 18 }}>Delivery Complete!</div>
-            <div style={{ color: "#aaa", fontSize: 13, marginTop: 4 }}>Delivered to {order.customer.name}</div>
-          </div>
-        )}
-        <div style={{ background: "#f8f8f8", borderRadius: 14, padding: "14px 16px", marginBottom: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <span style={{ color: "#666", fontSize: 13 }}>Delivery fare</span>
-            <span style={{ color: "#1a1a1a", fontWeight: 600, fontSize: 13 }}>{fmt(order.total)}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ color: "#666", fontSize: 13 }}>Tip</span>
-            <span style={{ color: tip > 0 ? "#06C167" : "#bbb", fontWeight: 600, fontSize: 13 }}>{fmt(tip)}</span>
-          </div>
-          <div style={{ borderTop: "1px solid #ebebeb", paddingTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "#1a1a1a", fontWeight: 700, fontSize: 14 }}>Total earned</span>
-            <span style={{ color: "#06C167", fontWeight: 900, fontSize: 22 }}>£{total}</span>
+
+          {/* Stats */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 8 }}>
+            <StatCard label="Distance" value={order.distance} />
+            <StatCard label="Duration" value={order.duration} />
+            <StatCard label="Rating" value={`${order.customer.rating}★`} />
           </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <StatCard label="Distance" value={order.distance} />
-          <StatCard label="Duration" value={order.duration} />
-          <StatCard label="Rating" value={`${order.customer.rating}★`} />
-        </div>
-        <button className="ubtn" onClick={onNext} style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 100, color: "#fff", fontWeight: 800, fontSize: 16, padding: "17px" }}>
+      </div>
+
+      {/* Button always pinned to bottom */}
+      <div style={{ padding: "12px 20px 36px", background: "#fff", boxShadow: "0 -2px 12px rgba(0,0,0,0.06)" }}>
+        <button className="ubtn" onClick={onNext} style={{ width: "100%", background: "#06C167", border: "none", borderRadius: 100, color: "#fff", fontWeight: 800, fontSize: 17, padding: "18px", cursor: "pointer" }}>
           Back to Map
         </button>
       </div>
@@ -1389,8 +1400,13 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
         </div>
       )}
 
+      {/* ═══════════════════ DELIVERY COMPLETE (full screen) ═══════════════════ */}
+      {phase === "delivered" && activeOrder && (
+        <DeliveryCompleteScreen order={activeOrder} tip={currentTip} rankedUp={rankedUp} onNext={handleNextAfterDelivery} />
+      )}
+
       {/* ═══════════════════ DELIVERY PHASE ═══════════════════ */}
-      {isDeliveryPhase && (
+      {isDeliveryPhase && phase !== "delivered" && (
         <>
           {/* Navigation header (like Uber left screen) */}
           <NavHeader phase={phase} order={activeOrder} />
