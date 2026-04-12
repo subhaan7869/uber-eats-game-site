@@ -894,7 +894,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       (navigator.wakeLock as WakeLock).request("screen").then(wl => { wakeLock = wl; }).catch(() => {});
     }
     return () => { wakeLock?.release().catch(() => {}); };
-  }, [phase !== "offline"]);
+  }, [phase]);
 
   useEffect(() => {
     if (phase === "offline") {
@@ -1015,7 +1015,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     progressRef.current = 0;
     setProgress(0);
     const steps = 80;
-    const stepTime = (parseInt(pick(DURATIONS)) * 600) / steps;
+    const durationMin = parseInt(order.duration) || 8;
+    const stepTime = (durationMin * 600) / steps;
     let step = 0;
     moveInterval.current = setInterval(() => {
       step++;
