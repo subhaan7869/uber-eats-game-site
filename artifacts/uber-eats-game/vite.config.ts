@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+// Environment variables with defaults for Vercel
 const rawPort = process.env.PORT || "3000";
 const port = Number(rawPort);
 const basePath = process.env.BASE_PATH || "/";
