@@ -1587,37 +1587,101 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
             </div>
           )}
 
-          {/* ── OFFLINE: Big GO button ── */}
+          {/* ── OFFLINE: Modern Uber Home Menu ── */}
           {phase === "offline" && (
-            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, display: "flex", flexDirection: "column", alignItems: "center", paddingBottom: 44 }}>
-              <button onClick={handleGoOnline} style={{
-                width: 88, height: 88, borderRadius: "50%",
-                background: "#1a1a2e", border: "none",
-                color: "white", fontWeight: 900, fontSize: 22,
-                cursor: "pointer", letterSpacing: "1px",
-                boxShadow: "0 4px 28px rgba(0,0,0,0.35), 0 0 0 8px rgba(255,255,255,0.6), 0 0 0 12px rgba(255,255,255,0.3)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "transform 0.15s ease, box-shadow 0.15s ease",
-              }}>GO</button>
-              <div style={{ color: "#555", fontSize: 14, fontWeight: 600, marginTop: 14 }}>You're offline</div>
-              {/* Stats strip */}
-              <div style={{ display: "flex", gap: 24, marginTop: 18, background: "rgba(255,255,255,0.9)", borderRadius: 16, padding: "12px 24px", boxShadow: "0 2px 12px rgba(0,0,0,0.1)" }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 18, color: "#1a1a1a" }}>{tripCount}</div>
-                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Trips</div>
-                </div>
-                <div style={{ width: 1, background: "#ebebeb" }} />
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 18, color: "#06C167" }}>{fmt(cashOutBalance)}</div>
-                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>Balance</div>
-                </div>
-                <div style={{ width: 1, background: "#ebebeb" }} />
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>{rank.icon}</div>
-                  <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>{rank.name}</div>
+            <>
+              {/* Top Profile Bar */}
+              <div style={{ position: "absolute", top: 60, left: 14, right: 14, zIndex: 10 }}>
+                <div style={{ background: "white", borderRadius: 16, padding: "14px 16px", boxShadow: "0 2px 16px rgba(0,0,0,0.08)", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#06C16718", border: "2px solid #06C167", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                    {profile.avatar}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {profile.name.split(' ')[0]}</div>
+                    <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{rank.icon} {rank.name} • {tripCount} trips</div>
+                  </div>
+                  <button onClick={() => setSideMenuOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      <div style={{ width: 18, height: 2, background: "#444", borderRadius: 2 }} />
+                      <div style={{ width: 14, height: 2, background: "#888", borderRadius: 2 }} />
+                      <div style={{ width: 18, height: 2, background: "#444", borderRadius: 2 }} />
+                    </div>
+                  </button>
                 </div>
               </div>
-            </div>
+
+              {/* Center GO Button */}
+              <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", zIndex: 5 }}>
+                <button onClick={handleGoOnline} style={{
+                  width: 120, height: 120, borderRadius: "50%",
+                  background: "linear-gradient(135deg, #06C167, #05944F)", border: "none",
+                  color: "white", fontWeight: 900, fontSize: 28,
+                  cursor: "pointer", letterSpacing: "2px",
+                  boxShadow: "0 8px 32px rgba(6,193,103,0.4), 0 0 0 12px rgba(6,193,103,0.15), 0 0 0 24px rgba(6,193,103,0.08)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                }} onMouseEnter={e => { e.currentTarget.style.transform = "scale(1.05)"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(6,193,103,0.5), 0 0 0 16px rgba(6,193,103,0.2), 0 0 0 32px rgba(6,193,103,0.1)"; }} onMouseLeave={e => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 8px 32px rgba(6,193,103,0.4), 0 0 0 12px rgba(6,193,103,0.15), 0 0 0 24px rgba(6,193,103,0.08)"; }}>GO</button>
+                <div style={{ textAlign: "center", marginTop: 20 }}>
+                  <div style={{ color: "#666", fontSize: 14, fontWeight: 600 }}>Tap to go online</div>
+                </div>
+              </div>
+
+              {/* Bottom Sheet - Earnings & Quick Stats */}
+              <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 10 }}>
+                <div style={{ background: "white", borderRadius: "24px 24px 0 0", boxShadow: "0 -4px 24px rgba(0,0,0,0.12)", padding: "20px 20px 30px" }}>
+                  {/* Handle bar */}
+                  <div style={{ width: 40, height: 4, background: "#e0e0e0", borderRadius: 2, margin: "0 auto 20px" }} />
+                  
+                  {/* Earnings Preview */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>Today's Earnings</div>
+                      <div style={{ fontWeight: 900, fontSize: 32, color: "#1a1a1a", marginTop: 4 }}>{fmt(todayEarnings)}</div>
+                    </div>
+                    <div style={{ background: "#E8F5E9", borderRadius: 12, padding: "10px 16px" }}>
+                      <div style={{ fontSize: 12, color: "#2E7D32", fontWeight: 700 }}>💰 {fmt(cashOutBalance)} available</div>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats Row */}
+                  <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 16, padding: "14px", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>🚗</div>
+                      <div style={{ fontWeight: 800, fontSize: 18, color: "#1a1a1a" }}>{tripCount}</div>
+                      <div style={{ fontSize: 11, color: "#888" }}>Trips</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 16, padding: "14px", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>⭐</div>
+                      <div style={{ fontWeight: 800, fontSize: 18, color: "#1a1a1a" }}>
+                        {ratings.length > 0 ? (ratings.reduce((a, r) => a + r.stars, 0) / ratings.length).toFixed(2) : "5.0"}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#888" }}>Rating</div>
+                    </div>
+                    <div style={{ flex: 1, background: "#f8f8f8", borderRadius: 16, padding: "14px", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>{rank.icon}</div>
+                      <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>{rank.name}</div>
+                      <div style={{ fontSize: 11, color: "#888" }}>Status</div>
+                    </div>
+                  </div>
+
+                  {/* Active Quests Preview */}
+                  {activeQuests.filter(q => q.progress < q.target).length > 0 && (
+                    <div style={{ marginTop: 16, background: "linear-gradient(135deg, #FFF8E1, #FFECB3)", borderRadius: 16, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 18 }}>🎯</span>
+                          <span style={{ fontWeight: 700, fontSize: 14, color: "#1a1a1a" }}>{activeQuests.filter(q => q.progress < q.target)[0].title}</span>
+                        </div>
+                        <span style={{ color: "#F57C00", fontWeight: 800, fontSize: 14 }}>£{activeQuests.filter(q => q.progress < q.target)[0].reward}</span>
+                      </div>
+                      <div style={{ marginTop: 8, background: "rgba(255,255,255,0.6)", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                        <div style={{ height: "100%", background: "#F57C00", width: `${Math.min(100, (activeQuests.filter(q => q.progress < q.target)[0].progress / activeQuests.filter(q => q.progress < q.target)[0].target) * 100)}%`, borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
 
           {/* ── ONLINE status bar ── */}
