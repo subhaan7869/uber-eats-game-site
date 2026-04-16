@@ -1,8 +1,0 @@
-{
-  "build": {
-    "cmd": "npm run build"
-  },
-  "spa": {
-    "outputDir": "dist/public"
-  }
-}
