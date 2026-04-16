@@ -22,6 +22,10 @@ interface Order {
 }
 interface BusyZone { id: string; x: number; y: number; r: number; label: string; multiplier: number; }
 
+// Quest and Rating types
+interface Quest { id: string; title: string; description: string; target: number; progress: number; reward: number; type: "trips" | "earnings" | "rating"; }
+interface Rating { id: string; orderId: string; customerName: string; stars: number; comment: string; date: string; }
+
 // ─── Rank System ──────────────────────────────────────────────────────────────
 
 interface Rank { name: string; icon: string; color: string; gradient: string; min: number; max: number | null; perks: string[]; }
@@ -510,7 +514,7 @@ function NavHeader({ phase, order }: { phase: Phase; order: Order | null }) {
 
 // ─── Side Menu ────────────────────────────────────────────────────────────────
 
-type MenuPage = null | "earnings" | "wallet" | "account" | "rank";
+type MenuPage = null | "earnings" | "wallet" | "account" | "rank" | "quests" | "ratings";
 
 function SideMenu({ isOpen, profile, earnings, todayEarnings, tripCount, totalCashedOut, onClose, onUpdateProfile, onCashOut, stateKey }: {
   isOpen: boolean; profile: DriverProfile; earnings: number; todayEarnings: number; tripCount: number; totalCashedOut: number;
@@ -1250,6 +1254,10 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   const [restaurantWaitTime, setRestaurantWaitTime] = useState(0);
   const [isWaitingAtRestaurant, setIsWaitingAtRestaurant] = useState(false);
   const restaurantWaitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Quests and Ratings state
+  const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
+  const [ratings, setRatings] = useState<Rating[]>([]);
 
   const isBusy = busyZones.length >= 2;
   const maxMultiplier = busyZones.length > 0 ? Math.max(...busyZones.map(z => z.multiplier)) : 1;

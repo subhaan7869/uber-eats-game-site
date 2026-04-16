@@ -9,26 +9,27 @@ const rawPort = process.env.PORT || "3000";
 const port = Number(rawPort);
 const basePath = process.env.BASE_PATH || "/";
 
-export default defineConfig({
-  base: "/",
-  plugins: [
+export default defineConfig(async () => {
+  const plugins: any[] = [
     react(),
     tailwindcss(),
     runtimeErrorOverlay(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer({
-              root: path.resolve(import.meta.dirname, ".."),
-            }),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
-  ],
+  ];
+
+  // Only load Replit plugins in development with REPL_ID
+  if (process.env.NODE_ENV !== "production" && process.env.REPL_ID !== undefined) {
+    const cartographer = await import("@replit/vite-plugin-cartographer").then((m) =>
+      m.cartographer({
+        root: path.resolve(import.meta.dirname, ".."),
+      }),
+    );
+    const devBanner = await import("@replit/vite-plugin-dev-banner").then((m) => m.devBanner());
+    plugins.push(cartographer, devBanner);
+  }
+
+  return {
+    base: "/",
+    plugins,
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),
