@@ -2,7 +2,7 @@
   "name": "uber-eats-game",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
+  "main": "server.js",
   "engines": {
     "node": "20.x"
   },
@@ -10,10 +10,11 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "start": "vite preview --config vite.config.ts --host 0.0.0.0 --port ${PORT:-3000}",
+    "start": "node server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "express": "^4.18.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
