@@ -832,6 +832,97 @@ function VerificationModal({ profile, onSuccess, onFail }: {
   );
 }
 
+// ─── Document Upload Modal ────────────────────────────────────────────────────
+
+function DocumentUploadModal({ documents, onUpload, onClose }: {
+  documents: {id: string; type: string; status: "valid" | "expired" | "missing"; uploadedAt: string | null}[];
+  onUpload: (docId: string) => void;
+  onClose: () => void;
+}) {
+  const [uploading, setUploading] = useState<string | null>(null);
+
+  const handleUpload = (docId: string) => {
+    setUploading(docId);
+    // Simulate upload delay
+    setTimeout(() => {
+      onUpload(docId);
+      setUploading(null);
+    }, 1500);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.9)", backdropFilter: "blur(10px)", zIndex: 400, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px" }}>
+      <div style={{ background: "#111", borderRadius: 24, padding: "28px 24px", width: "100%", maxWidth: 400, border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: "linear-gradient(135deg, #FF3B30, #FF6B6B)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>⚠️</div>
+          <div>
+            <div style={{ color: "#fff", fontWeight: 800, fontSize: 18 }}>Documents Required</div>
+            <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13 }}>Upload to go online</div>
+          </div>
+        </div>
+
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, marginBottom: 20, lineHeight: 1.5 }}>
+          Your documents have expired. Please upload new documents to continue driving.
+        </div>
+
+        {documents.map(doc => (
+          <div key={doc.id} style={{ background: "rgba(255,255,255,0.05)", borderRadius: 12, padding: "16px", marginBottom: 12, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: doc.status === "valid" ? "#06C16720" : "#FF3B3020", border: `2px solid ${doc.status === "valid" ? "#06C167" : "#FF3B30"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                {doc.status === "valid" ? "✅" : "📄"}
+              </div>
+              <div>
+                <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>{doc.type}</div>
+                <div style={{ color: doc.status === "valid" ? "#06C167" : "#FF3B30", fontSize: 12, fontWeight: 700, textTransform: "uppercase" }}>
+                  {doc.status}
+                </div>
+              </div>
+            </div>
+            {doc.status !== "valid" && (
+              <button 
+                onClick={() => handleUpload(doc.id)}
+                disabled={uploading === doc.id}
+                style={{ 
+                  background: uploading === doc.id ? "#333" : "#06C167", 
+                  border: "none", 
+                  borderRadius: 8, 
+                  color: "#fff", 
+                  fontWeight: 700, 
+                  fontSize: 12, 
+                  padding: "10px 16px", 
+                  cursor: uploading === doc.id ? "default" : "pointer",
+                  minWidth: 80
+                }}
+              >
+                {uploading === doc.id ? "⏳" : "Upload"}
+              </button>
+            )}
+          </div>
+        ))}
+
+        <button 
+          onClick={onClose}
+          disabled={documents.some(d => d.status !== "valid")}
+          style={{ 
+            width: "100%", 
+            marginTop: 8,
+            background: documents.some(d => d.status !== "valid") ? "#222" : "#06C167", 
+            border: "none", 
+            borderRadius: 100, 
+            color: documents.some(d => d.status !== "valid") ? "#666" : "#fff", 
+            fontWeight: 800, 
+            fontSize: 16, 
+            padding: "16px", 
+            cursor: documents.some(d => d.status !== "valid") ? "default" : "pointer"
+          }}
+        >
+          {documents.some(d => d.status !== "valid") ? "Upload All Documents" : "Go Online"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Bottom Panels ────────────────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -1259,6 +1350,14 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   const [activeQuests, setActiveQuests] = useState<Quest[]>([]);
   const [ratings, setRatings] = useState<Rating[]>([]);
 
+  // Document verification state
+  const [documents, setDocuments] = useState<{id: string; type: string; status: "valid" | "expired" | "missing"; uploadedAt: string | null}[]>([
+    { id: "license", type: "Driver's License", status: "expired", uploadedAt: null },
+    { id: "insurance", type: "Vehicle Insurance", status: "expired", uploadedAt: null },
+    { id: "registration", type: "Vehicle Registration", status: "expired", uploadedAt: null },
+  ]);
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+
   const isBusy = busyZones.length >= 2;
   const maxMultiplier = busyZones.length > 0 ? Math.max(...busyZones.map(z => z.multiplier)) : 1;
 
@@ -1395,12 +1494,22 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     startCooldown(cooldownSecs, () => { if (phaseRef.current !== "offline") spawnOrders(); });
   }, [isBusy, spawnOrders]);
 
-  function handleGoOnline() {
+  function proceedToOnline() {
     phaseRef.current = "online";
     setPhase("online");
     setBusyZones(pickBusyZones());
     playTap();
     startCooldown(8, () => { if (phaseRef.current === "online") spawnOrders(); });
+  }
+
+  function handleGoOnline() {
+    // Check if documents are expired
+    const expiredDocs = documents.filter(d => d.status === "expired" || d.status === "missing");
+    if (expiredDocs.length > 0) {
+      setShowDocumentUpload(true);
+      return; // Don't go online until documents are uploaded
+    }
+    proceedToOnline();
   }
 
   function handleGoOffline() {
@@ -1429,7 +1538,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     playAccept();
     const raw = localStorage.getItem(stateKey);
     const state = raw ? JSON.parse(raw) : {};
-    if ((state.tripCount ?? 0) > 0 && (state.tripCount ?? 0) % 3 === 0) setShowVerification(true);
+    // Show PIN verification every 20 deliveries
+    if ((state.tripCount ?? 0) > 0 && (state.tripCount ?? 0) % 20 === 0) setShowVerification(true);
     startMovement("to-restaurant", order);
   }
 
@@ -1536,6 +1646,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     <div style={{ display: "flex", flexDirection: "column", height: "100dvh", fontFamily: "'Inter',-apple-system,sans-serif", background: "#f2efe9", overflow: "hidden" }}>
 
       {showVerification && <VerificationModal profile={profile} onSuccess={() => setShowVerification(false)} onFail={() => { setShowVerification(false); handleGoOffline(); }} />}
+
+      {showDocumentUpload && <DocumentUploadModal documents={documents} onUpload={(docId) => setDocuments(prev => prev.map(d => d.id === docId ? { ...d, status: "valid", uploadedAt: new Date().toISOString() } : d))} onClose={() => { setShowDocumentUpload(false); if (!documents.some(d => d.status !== "valid")) proceedToOnline(); }} />}
 
       <SideMenu isOpen={sideMenuOpen} profile={profile} earnings={cashOutBalance} todayEarnings={todayEarnings} tripCount={tripCount} totalCashedOut={totalCashedOut}
         onClose={() => setSideMenuOpen(false)} onUpdateProfile={handleUpdateProfile}
