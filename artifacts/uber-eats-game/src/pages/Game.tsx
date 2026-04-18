@@ -1443,6 +1443,17 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     return () => clearInterval(iv);
   }, [phase === "offline"]);
 
+  // Periodic order spawn during delivery (every 30-60 seconds if under 3 jobs)
+  useEffect(() => {
+    if (phase === "offline" || phase === "selecting") return;
+    const interval = setInterval(() => {
+      if (activeJobsCount < 3 && availableOrders.length === 0 && !selectedOrderCard) {
+        spawnOrders();
+      }
+    }, Math.floor(rand(30000, 60000))); // 30-60 seconds
+    return () => clearInterval(interval);
+  }, [phase, activeJobsCount, availableOrders.length, selectedOrderCard, spawnOrders]);
+
   // Order countdown timer
   useEffect(() => {
     if (phase === "selecting") {
@@ -1514,10 +1525,14 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   const scheduleNextOrders = useCallback(() => {
     if (cooldownInterval) clearInterval(cooldownInterval);
     // Not busy: 2-3 minutes (120000-180000ms), Busy: 30 seconds (30000ms)
-    const cooldown = isBusy ? 30000 : Math.floor(rand(120000, 180000));
+    const cooldown = isBusy ? 30000 : Math.floor(rand(60000, 120000)); // Faster during delivery
     const cooldownSecs = Math.floor(cooldown / 1000);
-    phaseRef.current = "online";
-    setPhase("online");
+    // Don't force back to "online" if already on delivery - keep current phase
+    const currentPhase = phaseRef.current;
+    if (currentPhase === "selecting") {
+      phaseRef.current = "online";
+      setPhase("online");
+    }
     startCooldown(cooldownSecs, () => { if (phaseRef.current !== "offline") spawnOrders(); });
   }, [isBusy, spawnOrders]);
 
@@ -1624,6 +1639,12 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
           const newRank = getRank(newCount);
           if (newRank.name !== prevRank.name) { setRankedUp(newRank); playRankUp(); }
           else { setRankedUp(null); playDelivered(); }
+          // Spawn more orders immediately after delivery if under 3 jobs
+          setTimeout(() => {
+            if (activeJobsCount < 3 && phaseRef.current !== "offline") {
+              spawnOrders();
+            }
+          }, 2000);
         }
       }
     }, stepTime);
