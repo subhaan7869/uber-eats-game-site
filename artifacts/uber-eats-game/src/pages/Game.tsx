@@ -1301,7 +1301,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
 
   function loadState() {
     try { const r = localStorage.getItem(stateKey); if (r) return JSON.parse(r); } catch {}
-    return { totalEarnings: 0, tripCount: 0, loginCount: 0, todayEarnings: 0, lastCashOutDate: null, cashOutBalance: 0, totalCashedOut: 0 };
+    return { totalEarnings: 0, tripCount: 0, loginCount: 0, todayEarnings: 0, lastCashOutDate: null, cashOutBalance: 0, totalCashedOut: 0, activeJobsCount: 0 };
   }
   const saved = loadState();
 
@@ -1321,7 +1321,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   // totalEarnings kept for backwards compatibility
   const [totalEarnings, setTotalEarnings] = useState<number>(saved.cashOutBalance ?? saved.totalEarnings ?? 0);
   const [tripCount, setTripCount] = useState<number>(saved.tripCount ?? 0);
-  const [activeJobsCount, setActiveJobsCount] = useState<number>(0);
+  const [activeJobsCount, setActiveJobsCount] = useState<number>(saved.activeJobsCount ?? 0);
   const [lastCashOutDate, setLastCashOutDate] = useState<string | null>(saved.lastCashOutDate ?? null);
   const [totalCashedOut, setTotalCashedOut] = useState<number>(saved.totalCashedOut ?? 0);
   const [sessionTime, setSessionTime] = useState(0);
@@ -1372,8 +1372,9 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     state.acceptedCount = acceptedCount;
     state.lastCashOutDate = lastCashOutDate;
     state.totalCashedOut = totalCashedOut;
+    state.activeJobsCount = activeJobsCount;
     localStorage.setItem(stateKey, JSON.stringify(state));
-  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut]);
+  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut, activeJobsCount]);
 
   // Midnight check - reset todayEarnings at midnight
   useEffect(() => {
@@ -1474,11 +1475,10 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       scheduleNextOrders();
       return;
     }
-    const singleOrder = orders[0];
-    // Set as selected order directly (pops up immediately)
-    setOfferedCount(c => c + 1);
-    setAvailableOrders([singleOrder]);
-    setSelectedOrderCard(singleOrder);
+    // Show all orders if multiple available (batch delivery)
+    setOfferedCount(c => c + orders.length);
+    setAvailableOrders(orders);
+    setSelectedOrderCard(orders[0]); // Select first by default
     phaseRef.current = "selecting";
     setPhase("selecting");
     playNewOrder();
@@ -1900,6 +1900,32 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
               <div style={{ background: "white", borderRadius: "24px 24px 0 0", boxShadow: "0 -6px 32px rgba(0,0,0,0.18)" }}>
                 {/* Drag handle */}
                 <div style={{ width: 36, height: 4, background: "#e0e0e0", borderRadius: 2, margin: "14px auto 0" }} />
+
+                {/* ── Batch order selector (when multiple orders) ── */}
+                {availableOrders.length > 1 && (
+                  <div style={{ padding: "12px 16px 0", display: "flex", gap: 10, overflowX: "auto" }}>
+                    {availableOrders.map((o, idx) => (
+                      <button
+                        key={o.id}
+                        onClick={() => setSelectedOrderCard(o)}
+                        style={{
+                          flexShrink: 0,
+                          padding: "10px 14px",
+                          borderRadius: 12,
+                          border: selectedOrderCard.id === o.id ? "2px solid #06C167" : "2px solid #e0e0e0",
+                          background: selectedOrderCard.id === o.id ? "#E8F5E9" : "#f8f8f8",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          minWidth: 100,
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>{fmt(o.total)}</div>
+                        <div style={{ fontSize: 11, color: "#888" }}>{o.restaurant.emoji} {o.restaurant.name.slice(0, 10)}...</div>
+                        <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>{o.duration}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div style={{ padding: "16px 20px 0" }}>
 
