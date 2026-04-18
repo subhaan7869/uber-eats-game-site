@@ -1480,17 +1480,6 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     return () => clearInterval(iv);
   }, [phase === "offline"]);
 
-  // Periodic order spawn during delivery (every 30-60 seconds if under 3 jobs)
-  useEffect(() => {
-    if (phase === "offline" || phase === "selecting") return;
-    const interval = setInterval(() => {
-      if (activeJobsCount < 3 && availableOrders.length === 0 && !selectedOrderCard) {
-        spawnOrders();
-      }
-    }, Math.floor(rand(30000, 60000))); // 30-60 seconds
-    return () => clearInterval(interval);
-  }, [phase, activeJobsCount, availableOrders.length, selectedOrderCard, spawnOrders]);
-
   // Order countdown timer
   useEffect(() => {
     if (phase === "selecting") {
@@ -1521,18 +1510,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     return h > 0 ? `${h}:${String(m).padStart(2,"0")}:${String(sc).padStart(2,"0")}` : `${m}:${String(sc).padStart(2,"0")}`;
   }
 
-  function startCooldown(seconds: number, onDone: () => void) {
-    setCooldownSec(seconds);
-    if (cooldownInterval) clearInterval(cooldownInterval);
-    let remaining = seconds;
-    const iv = setInterval(() => {
-      remaining -= 1;
-      setCooldownSec(remaining);
-      if (remaining <= 0) { clearInterval(iv); setCooldownIntervalState(null); setCooldownSec(0); onDone(); }
-    }, 1000);
-    setCooldownIntervalState(iv);
-  }
-
+  // ── Order Spawning ──
   const spawnOrders = useCallback(() => {
     // Allow jobs while online OR on delivery (as long as under 3 active jobs)
     if (phaseRef.current === "offline") return;
@@ -1559,7 +1537,30 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     playNewOrder();
   }, [busyZones, tripCount, acceptanceRate, activeJobsCount]);
 
-  const scheduleNextOrders = useCallback(() => {
+  // Periodic order spawn during delivery (every 30-60 seconds if under 3 jobs)
+  useEffect(() => {
+    if (phase === "offline" || phase === "selecting") return;
+    const interval = setInterval(() => {
+      if (activeJobsCount < 3 && availableOrders.length === 0 && !selectedOrderCard) {
+        spawnOrders();
+      }
+    }, Math.floor(rand(30000, 60000))); // 30-60 seconds
+    return () => clearInterval(interval);
+  }, [phase, activeJobsCount, availableOrders.length, selectedOrderCard, spawnOrders]);
+
+  function startCooldown(seconds: number, onDone: () => void) {
+    setCooldownSec(seconds);
+    if (cooldownInterval) clearInterval(cooldownInterval);
+    let remaining = seconds;
+    const iv = setInterval(() => {
+      remaining -= 1;
+      setCooldownSec(remaining);
+      if (remaining <= 0) { clearInterval(iv); setCooldownIntervalState(null); setCooldownSec(0); onDone(); }
+    }, 1000);
+    setCooldownIntervalState(iv);
+  }
+
+  function scheduleNextOrders() {
     if (cooldownInterval) clearInterval(cooldownInterval);
     // Not busy: 2-3 minutes (120000-180000ms), Busy: 30 seconds (30000ms)
     const cooldown = isBusy ? 30000 : Math.floor(rand(60000, 120000)); // Faster during delivery
@@ -1571,7 +1572,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       setPhase("online");
     }
     startCooldown(cooldownSecs, () => { if (phaseRef.current !== "offline") spawnOrders(); });
-  }, [isBusy, spawnOrders]);
+  }
 
   function proceedToOnline() {
     phaseRef.current = "online";
