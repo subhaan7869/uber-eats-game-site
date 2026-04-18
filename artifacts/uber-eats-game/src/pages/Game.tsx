@@ -1719,6 +1719,13 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {profile.name.split(' ')[0]}</div>
                     <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{rank.icon} {rank.name} • {tripCount} trips</div>
+                    {rank.name !== "Blue" && (
+                      <div style={{ fontSize: 10, color: "#06C167", marginTop: 3, fontWeight: 600 }}>
+                        {rank.name === "Platinum" && "💎 Priority matching • 3.8mi radius • +10% earnings"}
+                        {rank.name === "Diamond" && "✨ VIP matching • 4.5mi radius • +15% earnings"}
+                        {rank.name === "Gold" && "🥈 Extended matching • 3.2mi radius • +5% earnings"}
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => setSideMenuOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 8 }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
@@ -1921,7 +1928,11 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
                       >
                         <div style={{ fontWeight: 800, fontSize: 16, color: "#1a1a1a" }}>{fmt(o.total)}</div>
                         <div style={{ fontSize: 11, color: "#888" }}>{o.restaurant.emoji} {o.restaurant.name.slice(0, 10)}...</div>
-                        <div style={{ fontSize: 10, color: "#aaa", marginTop: 2 }}>{o.duration}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: o.matchReason === "Priority match" ? "#6A1B9A" : "#888", background: o.matchReason === "Priority match" ? "#F3E5F5" : "transparent", borderRadius: 4, padding: "1px 4px" }}>
+                            {o.matchReason === "Priority match" ? "💎 PRIORITY" : o.duration}
+                          </span>
+                        </div>
                       </button>
                     ))}
                   </div>
