@@ -240,8 +240,8 @@ function pickBusyZones(): BusyZone[] {
 
 // ─── CITY MAP (Google Maps light style) ───────────────────────────────────────
 
-function CityMap({ busyZones, orders, driverPhase, onOrderTap, showDriverArrow }: {
-  busyZones: BusyZone[]; orders: Order[]; driverPhase: Phase; onOrderTap: (o: Order) => void; showDriverArrow?: boolean;
+function CityMap({ busyZones, orders, driverPhase, onOrderTap, showDriverArrow, driverPos }: {
+  busyZones: BusyZone[]; orders: Order[]; driverPhase: Phase; onOrderTap: (o: Order) => void; showDriverArrow?: boolean; driverPos?: {x: number, y: number};
 }) {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -414,7 +414,7 @@ function CityMap({ busyZones, orders, driverPhase, onOrderTap, showDriverArrow }
 
         {/* Driver location — blue arrow like Uber reference */}
         {driverPhase !== "offline" && (
-          <g transform="translate(220,270)">
+          <g transform={`translate(${driverPos?.x ?? 220},${driverPos?.y ?? 270})`}>
             <circle r={28} fill="rgba(26,115,232,0.15)"/>
             <circle r={16} fill="#1a73e8" stroke="white" strokeWidth="3"
                     style={{filter:"drop-shadow(0 3px 8px rgba(26,115,232,0.6))"}}/>
@@ -425,7 +425,7 @@ function CityMap({ busyZones, orders, driverPhase, onOrderTap, showDriverArrow }
 
         {/* Offline driver dot */}
         {driverPhase === "offline" && (
-          <g transform="translate(220,270)">
+          <g transform={`translate(${driverPos?.x ?? 220},${driverPos?.y ?? 270})`}>
             <circle r={22} fill="rgba(100,100,100,0.15)"/>
             <circle r={13} fill="#666" stroke="white" strokeWidth="3"/>
             <circle r={4} fill="white"/>
@@ -518,10 +518,12 @@ function NavHeader({ phase, order }: { phase: Phase; order: Order | null }) {
 
 type MenuPage = null | "earnings" | "wallet" | "account" | "rank" | "quests" | "ratings";
 
-function SideMenu({ isOpen, profile, earnings, todayEarnings, tripCount, totalCashedOut, onClose, onUpdateProfile, onCashOut, stateKey }: {
+function SideMenu({ isOpen, profile, earnings, todayEarnings, tripCount, totalCashedOut, onClose, onUpdateProfile, onCashOut, stateKey, isUberXMode, onToggleUberX }: {
   isOpen: boolean; profile: DriverProfile; earnings: number; todayEarnings: number; tripCount: number; totalCashedOut: number;
   onClose: () => void; onUpdateProfile: (p: DriverProfile) => void;
   onCashOut: () => void; stateKey: string;
+  isUberXMode?: boolean;
+  onToggleUberX?: () => void;
 }) {
   const [page, setPage] = useState<MenuPage>(null);
   const [editName, setEditName] = useState(profile.name);
@@ -683,6 +685,33 @@ function SideMenu({ isOpen, profile, earnings, todayEarnings, tripCount, totalCa
             <div style={{ padding: "20px" }}>
               <button onClick={() => setPage(null)} style={{ background: "none", border: "none", color: "#666", fontSize: 14, cursor: "pointer", marginBottom: 16, padding: 0 }}>← Back</button>
               <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 6 }}>Account</div>
+
+              {/* UberX Mode Toggle */}
+              {onToggleUberX && (
+                <div style={{ background: "#f8f8f8", borderRadius: 12, padding: "16px", marginBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>{isUberXMode ? "🚗 UberX" : "🍽️ Uber Eats"}</div>
+                    <button 
+                      onClick={onToggleUberX}
+                      style={{
+                        width: 50, height: 28, borderRadius: 14, border: "none",
+                        background: isUberXMode ? "#06C167" : "#ccc",
+                        cursor: "pointer", position: "relative", transition: "background 0.2s"
+                      }}
+                    >
+                      <div style={{
+                        width: 22, height: 22, borderRadius: "50%", background: "white",
+                        position: "absolute", top: 3,
+                        left: isUberXMode ? 25 : 3,
+                        transition: "left 0.2s", boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+                      }} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 12, color: "#888" }}>
+                    {isUberXMode ? "Switch to Uber Eats delivery mode" : "Switch to UberX passenger rides"}
+                  </div>
+                </div>
+              )}
               <div style={{ color: "#aaa", fontSize: 12, fontFamily: "monospace", marginBottom: 20 }}>{profile.driverCode}</div>
               <label style={{ fontSize: 11, fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.4px", display: "block", marginBottom: 6 }}>Display Name</label>
               <input value={editName} onChange={e => setEditName(e.target.value)} style={{ width: "100%", boxSizing: "border-box", border: "1.5px solid #e8e8e8", borderRadius: 10, padding: "13px", fontSize: 15, marginBottom: 16, outline: "none" }} />
@@ -1362,6 +1391,13 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   ]);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
 
+  // Driver position state (starts at home, moves during delivery)
+  const [driverPos, setDriverPos] = useState<{x: number, y: number}>(DRIVER_HOME);
+  const driverPosRef = useRef(DRIVER_HOME);
+
+  // UberX mode toggle (Uber Eats vs UberX passenger rides)
+  const [isUberXMode, setIsUberXMode] = useState<boolean>(saved.isUberXMode ?? false);
+
   const isBusy = busyZones.length >= 2;
   const maxMultiplier = busyZones.length > 0 ? Math.max(...busyZones.map(z => z.multiplier)) : 1;
 
@@ -1377,8 +1413,9 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     state.lastCashOutDate = lastCashOutDate;
     state.totalCashedOut = totalCashedOut;
     state.activeJobsCount = activeJobsCount;
+    state.isUberXMode = isUberXMode;
     localStorage.setItem(stateKey, JSON.stringify(state));
-  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut, activeJobsCount, lastOnlineDate]);
+  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut, activeJobsCount, lastOnlineDate, isUberXMode]);
 
   // Rank decay check - lose trips if offline for 3+ days
   useEffect(() => {
@@ -1596,11 +1633,26 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     const durationMin = parseInt(order.duration) || 8;
     const stepTime = (durationMin * 600) / steps;
     let step = 0;
+
+    // Get start and target positions
+    const startPos = { ...driverPosRef.current };
+    const targetPos = dir === "to-restaurant"
+      ? { x: order.restaurant.mapX, y: order.restaurant.mapY }
+      : { x: order.customer.mapX, y: order.customer.mapY };
+
     moveInterval.current = setInterval(() => {
       step++;
       const p = Math.min(100, (step / steps) * 100);
       progressRef.current = p;
       setProgress(p);
+
+      // Interpolate driver position for realistic movement
+      const currentPos = {
+        x: startPos.x + (targetPos.x - startPos.x) * (p / 100),
+        y: startPos.y + (targetPos.y - startPos.y) * (p / 100)
+      };
+      driverPosRef.current = currentPos;
+      setDriverPos(currentPos);
       if (p >= 100) {
         clearInterval(moveInterval.current!);
         if (dir === "to-restaurant") {
@@ -1702,7 +1754,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
 
       <SideMenu isOpen={sideMenuOpen} profile={profile} earnings={cashOutBalance} todayEarnings={todayEarnings} tripCount={tripCount} totalCashedOut={totalCashedOut}
         onClose={() => setSideMenuOpen(false)} onUpdateProfile={handleUpdateProfile}
-        onCashOut={handleCashOut} stateKey={stateKey} />
+        onCashOut={handleCashOut} stateKey={stateKey}
+        isUberXMode={isUberXMode} onToggleUberX={() => setIsUberXMode(prev => !prev)} />
 
       {/* Cash out toast */}
       {showCashOutMsg && (
@@ -1721,7 +1774,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       {/* ═══════════════════ MAP PHASE ═══════════════════ */}
       {isMapPhase && (
         <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-          <CityMap busyZones={busyZones} orders={availableOrders} driverPhase={phase} onOrderTap={o => setSelectedOrderCard(o)} />
+          <CityMap busyZones={busyZones} orders={availableOrders} driverPhase={phase} onOrderTap={o => setSelectedOrderCard(o)} driverPos={driverPos} />
 
           {/* Top bar */}
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, padding: "14px 14px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -2126,7 +2179,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
 
           {/* Map still visible behind */}
           <div style={{ flex: 1, position: "relative", minHeight: 0 }}>
-            <CityMap busyZones={[]} orders={[]} driverPhase={phase} onOrderTap={() => {}} />
+            <CityMap busyZones={[]} orders={[]} driverPhase={phase} onOrderTap={() => {}} driverPos={driverPos} />
 
             {/* Progress overlay on map */}
             {(phase === "to-restaurant" || phase === "to-customer") && (
