@@ -211,10 +211,12 @@ function generateOrderBatch(
   const isPriorityRank = rankName === "Diamond" || rankName === "Platinum";
   const isBusy = busyZones.length >= 2;
 
-  // All ranks can get 1-3 jobs based on busyness
+  // All ranks can get 1-3 jobs based on busyness and rank
   const maxCount = Math.min(3, maxJobsAllowed);
-  const minCount = isPriorityRank ? 1 : 1;
-  const count = Math.min(maxCount, sorted.length, Math.floor(rand(minCount, maxCount + 1)));
+  // Higher ranks get more orders: Diamond=2-3, Platinum=2-3, Gold=1-2, Blue=1
+  const minCount = rankName === "Diamond" || rankName === "Platinum" ? 2 : rankName === "Gold" ? 1 : 1;
+  const maxForRank = rankName === "Diamond" || rankName === "Platinum" ? 3 : rankName === "Gold" ? 2 : 1;
+  const count = Math.min(maxCount, sorted.length, Math.floor(rand(minCount, maxForRank + 1)));
 
   return sorted.slice(0, count).map(r =>
     generateRealisticOrder(driverPos, r, busyZones, rankName, acceptanceRate)
@@ -1301,7 +1303,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
 
   function loadState() {
     try { const r = localStorage.getItem(stateKey); if (r) return JSON.parse(r); } catch {}
-    return { totalEarnings: 0, tripCount: 0, loginCount: 0, todayEarnings: 0, lastCashOutDate: null, cashOutBalance: 0, totalCashedOut: 0, activeJobsCount: 0 };
+    return { totalEarnings: 0, tripCount: 0, loginCount: 0, todayEarnings: 0, lastCashOutDate: null, cashOutBalance: 0, totalCashedOut: 0, activeJobsCount: 0, lastOnlineDate: null };
   }
   const saved = loadState();
 
@@ -1324,6 +1326,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   const [activeJobsCount, setActiveJobsCount] = useState<number>(saved.activeJobsCount ?? 0);
   const [lastCashOutDate, setLastCashOutDate] = useState<string | null>(saved.lastCashOutDate ?? null);
   const [totalCashedOut, setTotalCashedOut] = useState<number>(saved.totalCashedOut ?? 0);
+  const [lastOnlineDate, setLastOnlineDate] = useState<string | null>(saved.lastOnlineDate ?? null);
+  const [rankDecayMsg, setRankDecayMsg] = useState<string>("");
   const [sessionTime, setSessionTime] = useState(0);
   const [progress, setProgress] = useState(0);
   const [rankedUp, setRankedUp] = useState<Rank | null>(null);
@@ -1374,7 +1378,30 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     state.totalCashedOut = totalCashedOut;
     state.activeJobsCount = activeJobsCount;
     localStorage.setItem(stateKey, JSON.stringify(state));
-  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut, activeJobsCount]);
+  }, [cashOutBalance, todayEarnings, tripCount, offeredCount, acceptedCount, lastCashOutDate, totalCashedOut, activeJobsCount, lastOnlineDate]);
+
+  // Rank decay check - lose trips if offline for 3+ days
+  useEffect(() => {
+    if (!lastOnlineDate) return;
+    const lastOnline = new Date(lastOnlineDate);
+    const now = new Date();
+    const daysOffline = Math.floor((now.getTime() - lastOnline.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysOffline >= 3) {
+      // Lose 1 trip per day offline after 3 days (max 10)
+      const tripsToLose = Math.min(daysOffline - 2, 10);
+      const newTripCount = Math.max(0, tripCount - tripsToLose);
+      if (newTripCount < tripCount) {
+        setTripCount(newTripCount);
+        const prevRank = getRank(tripCount);
+        const newRank = getRank(newTripCount);
+        if (newRank.name !== prevRank.name) {
+          setRankDecayMsg(`⬇️ Rank dropped to ${newRank.name} after ${daysOffline} days offline`);
+          setTimeout(() => setRankDecayMsg(""), 5000);
+        }
+      }
+    }
+  }, []);
 
   // Midnight check - reset todayEarnings at midnight
   useEffect(() => {
@@ -1520,6 +1547,9 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     setPhase("offline");
     setAvailableOrders([]);
     setSelectedOrderCard(null);
+    // Save last online date when going offline
+    const today = new Date().toISOString();
+    setLastOnlineDate(today);
     setCooldownSec(0);
     playTap();
   }
@@ -1657,6 +1687,13 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       {showCashOutMsg && (
         <div style={{ position: "fixed", top: 24, left: "50%", transform: "translateX(-50%)", background: "#06C167", borderRadius: 100, padding: "12px 22px", color: "#fff", fontWeight: 700, fontSize: 14, zIndex: 400, boxShadow: "0 4px 20px rgba(6,193,103,0.5)", whiteSpace: "nowrap", animation: "slideUp 0.25s ease" }}>
           💸 {showCashOutMsg}
+        </div>
+      )}
+
+      {/* Rank decay toast */}
+      {rankDecayMsg && (
+        <div style={{ position: "fixed", top: 70, left: "50%", transform: "translateX(-50%)", background: "#FF3B30", borderRadius: 100, padding: "12px 22px", color: "#fff", fontWeight: 700, fontSize: 14, zIndex: 400, boxShadow: "0 4px 20px rgba(255,59,48,0.5)", whiteSpace: "nowrap", animation: "slideUp 0.25s ease" }}>
+          {rankDecayMsg}
         </div>
       )}
 
