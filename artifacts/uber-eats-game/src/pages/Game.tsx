@@ -216,7 +216,7 @@ function generateOrderBatch(
   // Higher ranks get more orders: Diamond=2-3, Platinum=2-3, Gold=1-2, Blue=1
   const minCount = rankName === "Diamond" || rankName === "Platinum" ? 2 : rankName === "Gold" ? 1 : 1;
   const maxForRank = rankName === "Diamond" || rankName === "Platinum" ? 3 : rankName === "Gold" ? 2 : 1;
-  const count = Math.min(maxCount, sorted.length, Math.floor(rand(minCount, maxForRank + 1)));
+  const count = Math.max(1, Math.min(maxCount, sorted.length, Math.floor(rand(minCount, maxForRank + 1))));
 
   return sorted.slice(0, count).map(r =>
     generateRealisticOrder(driverPos, r, busyZones, rankName, acceptanceRate)
@@ -1473,6 +1473,7 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
   // ── Wake Lock (keep screen on at ALL times) ──
   useEffect(() => {
     let wakeLock: WakeLockSentinel | null = null;
+    let noSleepVideo: HTMLVideoElement | null = null;
     
     const requestWakeLock = async () => {
       if ("wakeLock" in navigator) {
@@ -1484,21 +1485,51 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
       }
     };
     
+    // iOS/Safari fallback: hidden video loop prevents sleep
+    const setupNoSleep = () => {
+      if (noSleepVideo) return;
+      noSleepVideo = document.createElement("video");
+      noSleepVideo.setAttribute("loop", "");
+      noSleepVideo.setAttribute("playsinline", "");
+      noSleepVideo.setAttribute("muted", "");
+      noSleepVideo.style.position = "absolute";
+      noSleepVideo.style.opacity = "0";
+      noSleepVideo.style.pointerEvents = "none";
+      noSleepVideo.style.width = "1px";
+      noSleepVideo.style.height = "1px";
+      // Use a tiny silent base64 video
+      noSleepVideo.src = "data:video/mp4;base64,AAAAFGZ0eXBxdCAgAAAAAGNyb+AAAAJjb250AAAAGXRlc3QAAAB4b29iZgAAACB0cmFuc2Zvcm0AAAEAAAAAAAABAAAAAA==";
+      document.body.appendChild(noSleepVideo);
+      noSleepVideo.play().catch(() => {});
+    };
+    
     // Request wake lock immediately
     requestWakeLock();
+    setupNoSleep();
     
     // Re-acquire wake lock when user returns to the app
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         requestWakeLock();
+        noSleepVideo?.play().catch(() => {});
       }
     };
+    
+    // Keep re-requesting wake lock every 15 seconds as backup
+    const keepAliveInterval = setInterval(() => {
+      requestWakeLock();
+      if (document.visibilityState === "visible") {
+        noSleepVideo?.play().catch(() => {});
+      }
+    }, 15000);
     
     document.addEventListener("visibilitychange", handleVisibilityChange);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(keepAliveInterval);
       wakeLock?.release().catch(() => {});
+      noSleepVideo?.remove();
     };
   }, []);
 
