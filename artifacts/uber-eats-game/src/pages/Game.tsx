@@ -1562,8 +1562,8 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
 
   function scheduleNextOrders() {
     if (cooldownInterval) clearInterval(cooldownInterval);
-    // Not busy: 2-3 minutes (120000-180000ms), Busy: 30 seconds (30000ms)
-    const cooldown = isBusy ? 30000 : Math.floor(rand(60000, 120000)); // Faster during delivery
+    // Not busy: 5-10 minutes (300000-600000ms), Busy: 30-60 seconds (30000-60000ms)
+    const cooldown = isBusy ? Math.floor(rand(30000, 60000)) : Math.floor(rand(300000, 600000));
     const cooldownSecs = Math.floor(cooldown / 1000);
     // Don't force back to "online" if already on delivery - keep current phase
     const currentPhase = phaseRef.current;
