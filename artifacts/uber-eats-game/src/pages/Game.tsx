@@ -1470,14 +1470,37 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     return () => clearInterval(interval);
   }, []);
 
-  // ── Wake Lock (prevent screen sleep while driving) ──
+  // ── Wake Lock (keep screen on at ALL times) ──
   useEffect(() => {
     let wakeLock: WakeLockSentinel | null = null;
-    if (phase !== "offline" && "wakeLock" in navigator) {
-      (navigator.wakeLock as WakeLock).request("screen").then(wl => { wakeLock = wl; }).catch(() => {});
-    }
-    return () => { wakeLock?.release().catch(() => {}); };
-  }, [phase]);
+    
+    const requestWakeLock = async () => {
+      if ("wakeLock" in navigator) {
+        try {
+          wakeLock = await (navigator.wakeLock as WakeLock).request("screen");
+        } catch (err) {
+          // Wake lock failed (e.g., battery saver), silent fail
+        }
+      }
+    };
+    
+    // Request wake lock immediately
+    requestWakeLock();
+    
+    // Re-acquire wake lock when user returns to the app
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestWakeLock();
+      }
+    };
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      wakeLock?.release().catch(() => {});
+    };
+  }, []);
 
   useEffect(() => {
     if (phase === "offline") {
