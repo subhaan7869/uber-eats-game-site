@@ -1823,6 +1823,32 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
             </div>
           </div>
 
+          {/* Busy/Calm Status Indicator */}
+          {phase !== "offline" && (
+            <div style={{ 
+              position: "absolute", 
+              top: 60, 
+              left: "50%", 
+              transform: "translateX(-50%)", 
+              zIndex: 10,
+              background: isBusy ? "#FF3B30" : "#06C167",
+              borderRadius: 20,
+              padding: "6px 16px",
+              boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+              display: "flex",
+              alignItems: "center",
+              gap: 6
+            }}>
+              <span style={{ fontSize: 14 }}>{isBusy ? "🔥" : "😌"}</span>
+              <span style={{ color: "#fff", fontWeight: 800, fontSize: 13 }}>
+                {isBusy ? "BUSY" : "CALM"}
+              </span>
+              <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 11 }}>
+                {isBusy ? "30-60s orders" : "5-10min orders"}
+              </span>
+            </div>
+          )}
+
           {/* Busy zone labels */}
           {phase !== "offline" && busyZones.map(z => (
             <div key={z.id} style={{
