@@ -234,8 +234,22 @@ const POSSIBLE_BUSY_ZONES: Omit<BusyZone, "id">[] = [
   { x: 320, y: 300, r: 55,  label: "Carlton",     multiplier: 1.25 },
 ];
 function pickBusyZones(): BusyZone[] {
-  const count = Math.floor(rand(1, 4));
-  return [...POSSIBLE_BUSY_ZONES].sort(() => Math.random() - 0.5).slice(0, count).map((z, i) => ({ ...z, id: String(i) }));
+  // 30% chance of no busy zones (calm period)
+  if (Math.random() < 0.3) return [];
+  
+  // Random intensity: light (1 zone), moderate (2 zones), heavy (3-4 zones)
+  const intensity = Math.random();
+  let count: number;
+  if (intensity < 0.4) count = 1;        // Light traffic (40%)
+  else if (intensity < 0.75) count = 2;  // Moderate (35%)
+  else count = Math.floor(rand(3, 5));    // Heavy rush (25%)
+  
+  return [...POSSIBLE_BUSY_ZONES].sort(() => Math.random() - 0.5).slice(0, count).map((z, i) => ({ 
+    ...z, 
+    id: String(i),
+    // Vary multiplier slightly for realism (1.1x to 1.6x)
+    multiplier: parseFloat((1.1 + Math.random() * 0.5).toFixed(1))
+  }));
 }
 
 // ─── CITY MAP (Google Maps light style) ───────────────────────────────────────
@@ -1473,11 +1487,22 @@ export default function Game({ profile: initialProfile, stateKey }: { profile: D
     }
   }, [phase]);
 
+  // Dynamic busy zones - change every 1-5 minutes for realism
   useEffect(() => {
     if (phase === "offline") return;
     setBusyZones(pickBusyZones());
-    const iv = setInterval(() => setBusyZones(pickBusyZones()), 45000);
-    return () => clearInterval(iv);
+    
+    const scheduleNextUpdate = () => {
+      // Random interval between 1-5 minutes (60000-300000ms)
+      const nextUpdate = Math.floor(rand(60000, 300000));
+      return setTimeout(() => {
+        setBusyZones(pickBusyZones());
+        scheduleNextUpdate();
+      }, nextUpdate);
+    };
+    
+    const timeout = scheduleNextUpdate();
+    return () => clearTimeout(timeout);
   }, [phase === "offline"]);
 
   // Order countdown timer
